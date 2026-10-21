@@ -7,22 +7,18 @@ module miso_party::test_helpers;
 use std::string::String;
 use miso_party::party::{Self, Party, PartyAdminCap, PartyKind};
 
-/// An individual party named "Test Artist".
 public fun individual(ctx: &mut TxContext): (Party, PartyAdminCap) {
     individual_named(b"Test Artist".to_string(), ctx)
 }
 
-/// An individual party with the given name.
 public fun individual_named(name: String, ctx: &mut TxContext): (Party, PartyAdminCap) {
     new_party(party::new_individual_kind(), name, ctx)
 }
 
-/// An empty group party named "Test Group".
 public fun group(ctx: &mut TxContext): (Party, PartyAdminCap) {
     new_party(party::new_group_kind(), b"Test Group".to_string(), ctx)
 }
 
-/// `len` bytes of 'A'.
 public fun long_string(len: u64): String {
     let mut s = vector<u8>[];
     len.do!(|_| s.push_back(65));

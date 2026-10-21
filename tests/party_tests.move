@@ -25,7 +25,6 @@ use miso_party::test_helpers;
 const MAX_NAME_LENGTH: u64 = 200;
 const MAX_GROUP_MEMBERS: u64 = 200;
 
-/// invite + accept in one step (the common path when one operator holds both caps).
 fun join(
     group: &mut Party,
     group_cap: &PartyAdminCap,
@@ -86,12 +85,10 @@ fun join_group() {
     let party_id = object::id(&individual);
     join(&mut group, &group_cap, &mut individual, &individual_cap);
 
-    // Both sides recorded: the group's set and the member's own membership df.
     assert_eq!(group.group_members().length(), 1);
     assert!(group.group_members().contains(&party_id));
     assert!(party::is_member(&individual, object::id(&group)));
     assert!(!group.has_pending_invite(party_id)); // invite consumed
-    // Inbox entry consumed.
     assert!(!party::has_pending_membership(&individual, object::id(&group)));
     assert_eq!(events_by_type<PartyGroupInviteCreatedEvent>().length(), 1);
     assert_eq!(events_by_type<PartyGroupMembershipAcceptedEvent>().length(), 1);
@@ -145,7 +142,6 @@ fun decline_invite() {
     assert_eq!(events_by_type<PartyGroupInviteCreatedEvent>().length(), 1);
     assert_eq!(events_by_type<PartyGroupInviteDeclinedEvent>().length(), 1);
 
-    // A declined invitation can be created again and then accepted.
     group.invite_party(&mut member, &group_cap);
     group.accept_invite(&mut member, &member_cap);
     assert!(party::is_member(&member, object::id(&group)));
@@ -175,7 +171,6 @@ fun revoke_invite() {
     assert_eq!(events_by_type<PartyGroupInviteCreatedEvent>().length(), 1);
     assert_eq!(events_by_type<PartyGroupInviteRevokedEvent>().length(), 1);
 
-    // Revocation also leaves the invitation reusable.
     group.invite_party(&mut member, &group_cap);
     group.decline_invite(&mut member, &member_cap);
     assert_eq!(events_by_type<PartyGroupInviteCreatedEvent>().length(), 2);
@@ -244,7 +239,6 @@ fun remove_member() {
     join(&mut group, &group_cap, &mut individual, &individual_cap);
     assert_eq!(group.group_members().length(), 1);
 
-    // Admin evict — scrubs both the set and the member's own record, no member cap.
     group.remove_member(&group_cap, &mut individual);
     assert_eq!(group.group_members().length(), 0);
     assert!(!party::is_member(&individual, object::id(&group)));
@@ -299,13 +293,11 @@ fun set_name_at_max_length() {
 #[test, expected_failure(abort_code = party::EMaxGroupMembersExceeded)]
 fun invite_exceeds_max_group_members() {
     let ctx = &mut tx_context::dummy();
-    // Create a group pre-filled with MAX_GROUP_MEMBERS members.
     let (mut group, group_cap) = party::new_group_with_n_members_for_testing(
         MAX_GROUP_MEMBERS,
         ctx,
     );
 
-    // Inviting one more should fail (the group is already full).
     let (mut individual, individual_cap) = test_helpers::individual(ctx);
     group.invite_party(&mut individual, &group_cap);
 
@@ -443,7 +435,6 @@ fun unauthorized_cap() {
     let (mut party1, cap1) = test_helpers::individual(ctx);
     let (party2, cap2) = test_helpers::individual(ctx);
 
-    // Try to use party2's cap on party1.
     party1.set_name(&cap2, b"Hacked".to_string());
 
     destroy(party1);
@@ -503,7 +494,6 @@ fun leave_group() {
     join(&mut group, &group_cap, &mut member, &member_cap);
     assert_eq!(group.group_members().length(), 1);
 
-    // The member's own cap authorizes the exit — no group admin involved.
     group.leave(&mut member, &member_cap);
     assert_eq!(group.group_members().length(), 0);
     assert!(!party::is_member(&member, object::id(&group)));

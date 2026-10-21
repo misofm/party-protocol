@@ -1,9 +1,6 @@
 // Copyright (c) Miso Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// Multi-transaction tests for the shared-object flows parties actually live
-/// in: share, post-share mutation, group editing, and the dynamic-field
-/// extension surface.
 #[test_only]
 module miso_party::party_lifecycle_tests;
 
@@ -82,8 +79,6 @@ fun set_name_works_on_shared_party() {
     scenario.end();
 }
 
-/// The dynamic-field extension surface works on a shared party (this is where
-/// a Profile object would attach).
 #[test]
 fun uid_mut_attaches_dynamic_fields_on_shared_party() {
     let mut scenario = test_scenario::begin(OWNER);
@@ -95,8 +90,6 @@ fun uid_mut_attaches_dynamic_fields_on_shared_party() {
     dynamic_field::add(p.uid_mut(&cap), b"profile", 42u64);
     assert!(dynamic_field::exists(p.uid(), b"profile"));
     assert_eq!(*dynamic_field::borrow<vector<u8>, u64>(p.uid(), b"profile"), 42);
-    // Dynamic-field attachment is a read/write extension operation and emits
-    // no Party lifecycle event in this transaction.
     assert_eq!(events_by_type<PartyCreatedEvent>().length(), 0);
     assert_eq!(events_by_type<PartyNameSetEvent>().length(), 0);
     test_scenario::return_shared(p);
@@ -117,8 +110,6 @@ fun share_rejects_wrong_cap() {
     destroy(other_cap);
 }
 
-/// Group membership lifecycle across shared objects: invite + accept, then the
-/// member leaves. Exercises both `Party` objects being taken shared and mutated.
 #[test]
 fun member_joins_and_leaves_shared_group() {
     let mut scenario = test_scenario::begin(OWNER);
@@ -129,7 +120,6 @@ fun member_joins_and_leaves_shared_group() {
     group.share(&group_cap);
     member.share(&member_cap);
 
-    // Group admin invites; the member accepts with its own cap (consent).
     scenario.next_tx(OWNER);
     let mut group = scenario.take_shared_by_id<Party>(group_id);
     let mut member = scenario.take_shared_by_id<Party>(member_id);
@@ -142,7 +132,6 @@ fun member_joins_and_leaves_shared_group() {
     test_scenario::return_shared(group);
     test_scenario::return_shared(member);
 
-    // The member exits with their own cap; both sides are cleared.
     scenario.next_tx(READER);
     let mut group = scenario.take_shared_by_id<Party>(group_id);
     let mut member = scenario.take_shared_by_id<Party>(member_id);
