@@ -1,184 +1,47 @@
 # Security Audit — `miso_party`
 
-**Revision:** commit `39f0ae5f2ce090bb4bfc4703d99a32810d20765d` (`misofm/party-protocol`, `main`) ·
-**Date:** 2026-08-23 · **Toolchain:** sui 1.77.2-51d177ad7d65 ·
-**Framework:** pinned rev `2a0becb2fcc6989e492981104af67f62f2c9511a`
-(`Move.lock`); no other dependencies.
-
-Audit of `party.move` (566 LOC): the identity object every `party-*`
-extension hangs off of. Verdict: **safe to publish — no
-Critical/High/Medium findings.**
+Audited at `7e2f64f604e21e2662d6b4aaaa0446de27bfd58f` (2026-10-21). Scope: package `miso_party`, module `party` (`sources/party.move`, 313 lines); framework pinned at `719fb2960ccfbf9f4d33041f8ea5146d30671696` (`Move.lock`), no other dependencies.
 
 ## What it does
 
-A `Party` is a shared, `key`-only object (individual or group) with a
-human-readable name. All mutation is gated by a `PartyAdminCap` that carries
-`party_id` and is checked by object ID (`authorize`, `party.move:501-503`).
-Group membership is a two-sided dynamic-field protocol:
+`Party` is a shared, `key`-only identity object (individual or group) with a name, administered through a `PartyAdminCap` that is a derived object of the party. Group membership is a two-sided invite/accept protocol kept in module-private dynamic fields on both parties; `is_member` is the authorization primitive extensions read. See [README](README.md).
 
-- `invite_party` (group cap) writes matching pending markers on **both**
-  parties (`party.move:285-307`);
-- `accept_invite` (**member's own** cap) consumes both markers, inserts into
-  the group's `VecSet<ID>`, and writes a `Membership` record on the member
-  (`party.move:313-341`) — no party can be made a member without consent;
-- `decline_invite` (member cap) / `revoke_invite` (group cap) clear both
-  sides together;
-- `leave` (member cap, unconditional exit) and `remove_member` (group cap,
-  eviction) both run `remove_membership`, scrubbing the group's set and the
-  member's record (`party.move:409-424`).
+## Trust model
 
-`uid()` is public read; `uid_mut(cap)` (`party.move:519-522`) is the sole
-authority-bearing accessor — the extension surface for `party_profile`,
-`party_wallet`, etc.
-
-Threat model: forged membership (an extension or third party writing group
-affiliation without consent), cap confusion across parties, unauthorized
-extension writes, eviction/exit asymmetries, object bloat DoS.
+- **Cap holder** (`PartyAdminCap`, `key + store`, transferable, no burn or rotation): `share`, `set_name`, `uid_mut`; as a group admin `invite_party`, `revoke_invite`, `remove_member`; as a member `accept_invite`, `decline_invite`, `leave`. Through `uid_mut` the holder can attach any dynamic field or derived object and can `transfer::receive` objects sent to the party's address, so the party address is a cap-controlled account.
+- **Anyone**: `new` (returns party and cap; the party must be shared in the same transaction because `Party` has no `store` or `drop`), all view functions, `uid` (read-only `&UID`).
+- **Nobody**: delete, transfer, wrap or freeze a `Party`; change its kind; construct `PartyKind::Group` with members (only `new_group_kind` builds an empty one); construct `PartyAdminCapKey`, `PendingInviteKey`, `PendingMembershipKey` or `MembershipKey` outside the module, so no `uid_mut` holder can forge or scrub invite or membership state or re-claim the cap; make a party a member without its own cap (`accept_invite`, `party.move:212-213`).
 
 ## Findings
 
-- **F1 (Informational): `invite_party` writes to the invited party's UID
-  without its cap.** `df::add(&mut member.id, PendingMembershipKey(group_id),
-  true)` (`party.move:304`) uses the module's own struct-field privilege over
-  `Party`. Benign by construction: the value is a unit marker, the member can
-  always `decline_invite` to remove it, and the write is bounded only by the
-  inviter's gas (each invite is one field on each side, paid by the inviter).
-  Corollary dust economics: the storage rebate on removal goes to the
-  *remover's* transaction, so a declining member receives a rebate the
-  inviter paid. Sub-dust amounts; not actionable.
-  **Disposition (2026-08-24):** accepted-by-design — the marker write is
-  removable by the member at will and bounded by inviter gas; the rebate
-  asymmetry is sub-dust.
-- **F2 (Informational): pending invites are unbounded.** `MAX_GROUP_MEMBERS`
-  (200) caps *members* (checked at invite, `party.move:299`, and again at
-  accept, `party.move:332`) but not pending invitations. A group admin can
-  invite arbitrarily many parties, growing both objects' dynamic-field stores
-  at the inviter's expense. No funds are locked, no victim pays storage, and
-  invites are individually removable. Accepted-as-designed spam surface.
-  **Disposition (2026-08-24):** accepted-by-design — pending invites cost only
-  the inviter, lock no funds, are individually removable, and member capacity
-  is enforced again at accept.
-- **F3 (Informational): membership keys are unforgeable — verified.**
-  `MembershipKey`, `PendingInviteKey`, `PendingMembershipKey` are `public
-  struct`s with private fields (`party.move:62-81`), so only this module can
-  construct a key value, and `df::add`/`remove`/`borrow` all require the key
-  by value. An extension holding `uid_mut` therefore cannot forge, alter, or
-  scrub membership/invite state — the load-bearing isolation property for the
-  whole extension ecosystem. `is_member` (`party.move:476-478`) reads the
-  member-side record and is the extensions' member-gated authorization
-  primitive; it cannot be spoofed.
-  **Disposition (2026-08-24):** accepted-by-design — verified property, not a
-  defect: module-private key construction makes membership and invite state
-  unforgeable by any extension, the intended isolation boundary.
+- **F1 (Info, Accepted) `invite_party` writes to the invited party without its cap.** `df::add(&mut member.id, PendingMembershipKey(group_id), true)` (`party.move:208`) uses the module's field privilege. The value is a unit marker the member can remove at will via `decline_invite`, the inviter pays the storage, and the storage rebate on removal goes to whoever removes it. No funds or state of the member are affected.
+- **F2 (Info, Accepted) Pending invites are unbounded.** `MAX_GROUP_MEMBERS` bounds members at invite (`party.move:204`) and again at accept (`party.move:220`) but not pending invites, so a group admin can grow both parties' dynamic-field stores at their own expense, and many groups can target one member. Lookups are O(1) and nothing iterates pending fields; over-inviting degrades to `EMaxGroupMembersExceeded` at accept.
+- **F3 (Info, Open) No cap recovery.** `PartyAdminCap` (`party.move:40-43`) has no burn, rotation or re-issue path, and `claim` under `PartyAdminCapKey(party_id)` (`party.move:121`) can run only once per party. A lost or stuck cap permanently freezes the party's name, extension writes and its side of membership; counterparties keep their own exits (`leave`, `remove_member`, `decline_invite`), but a lost group cap leaves its pending invites revocable only by the invitees.
+- **F4 (Info, Open) Events for a party can precede its `PartyCreatedEvent`.** `set_name`, `invite_party` and `accept_invite` may run on an unshared party and emit (`party.move:194, 209, 223`) before `share` emits `PartyCreatedEvent` (`party.move:129-134`) in the same transaction. Indexers that apply events strictly in order must tolerate a `party_id` they have not yet seen, or process a transaction's events as a batch. The README's "delta applied in order" model is otherwise exact.
 
-No other findings. Specifically checked and cleared:
+No Critical, High, Medium or Low findings.
 
-- **Cap binding.** `PartyAdminCap` carries `party_id`; `authorize` compares
-  object IDs (`party.move:502`). `share`, `set_name`, `uid_mut`, and all
-  membership endpoints authorize the correct side: group ops check the
-  *group's* cap, member ops check the *member's* cap (`party.move:290, 319,
-  350, 368, 383, 398`). Wrong-cap aborts `EUnauthorized` (tested).
-- **Two-sided consistency.** Both pending markers are always written and
-  removed together (`party.move:303-304, 327-328, 355-356, 373-374`); accept
-  requires both to exist, so neither side can be orphaned into a stuck state.
-  `remove_membership` guards the member-side remove with `df::exists`
-  (`party.move:421`) — defensive, unreachable under the write-together
-  invariant.
-- **Kind confusion.** Members must be `Individual` at invite
-  (`party.move:297`); `PartyKind` is immutable after `new`, so a member can
-  never become a group. Self-membership rejected (`party.move:296`).
-  Duplicate membership impossible (`VecSet::insert` aborts;
-  `EDuplicateParty` pre-checked).
-- **Group admin reach is scoped.** `remove_member` scrubs the member's record
-  *for this group only* (`party.move:392-405`); nothing else on the member is
-  touchable without its cap.
-- **Object lifecycle.** `Party` is `key`-only, no `drop`, and the only
-  consumer is cap-gated `share` (`party.move:261-264`) — a party cannot be
-  transferred, wrapped, or discarded; creation is atomic with sharing.
-- **Bounds.** Name 1–200 bytes, members ≤ 200 (`O(n)` `VecSet` ops are
-  tx-cheap at that size), no unbounded loops anywhere.
+## Checked, no finding
 
-## Edge cases (verified)
+- **Cap binding.** Every mutator calls `authorize`, which compares `cap.party_id` to the object ID (`party.move:269-271`). Group operations check the group's cap, member operations the member's cap (`party.move:198, 213, 227, 236, 245, 254, 263`). Wrong-cap probes on all eight cap-gated entry points abort `EUnauthorized`.
+- **Two-sided consistency.** Pending markers are written together (`party.move:207-208`) and removed together only in `consume_invite` (`party.move:283-285`); the group-side `exists` check guards both removes because no other writer exists. Membership is inserted on both sides (`party.move:221-222`) and removed on both only in `remove_membership` (`party.move:292-294`) after a `contains` check. Probed: decline then revoke, revoke then re-invite, leave then re-invite, remove then re-invite.
+- **Role and kind confusion.** Members must be `Individual` (`party.move:202`) and the inviter a group (`party.move:201`); `PartyKind` is set once in `new`. An individual passed as `group` to `revoke_invite`, `decline_invite`, `leave` or `remove_member` aborts (`ENoPendingInvite` or `ENotGroupKind`) because individuals never hold `PendingInviteKey` or a member set. Duplicate membership is pre-checked (`party.move:203`) and `VecSet::insert` would abort anyway. Self-invite is impossible: one object cannot be passed twice as `&mut`.
+- **Key unforgeability.** The four key types are positional structs with private fields (`party.move:45-51`); construction from another module fails to compile (`restricted visibility`), as does `PartyKind::Group(...)`. A same-shape key type in another module hashes to a different field and a different derived address (probed). Framework `Claimed` and `DerivedObjectKey` are likewise private, so the derived-object marker cannot be removed through `uid_mut`.
+- **Object lifecycle.** `Party` is `key`-only, never deleted, and its only consumer is `share` (`party.move:127-136`); so the cap's derived address can never be re-claimed and `claim` cannot collide (one key per party).
+- **Validation and abort order.** Name 1–200 bytes in `new` and `set_name` (`party.move:111-112, 190-191`); equal-name write is a silent no-op after authorization (`party.move:192`). Abort order in `invite_party`: `EUnauthorized`, `ENotGroupKind`, `ENotIndividualKind`, `EDuplicateParty`, `EMaxGroupMembersExceeded`, `EAlreadyInvited`; in `accept_invite`: `EUnauthorized`, `ENotGroupKind`, `ENoPendingInvite`, `EMaxGroupMembersExceeded`. All ten codes are reachable and tested; the README table matches.
+- **Events.** Each state change emits exactly one event with the fields the README lists; sizes match BCS (`PartyCreatedEvent` 267 B, `PartyNameSetEvent` 234 B, membership events 64 B). `admin_cap_id` equals `derive_address(party_id, PartyAdminCapKey(party_id))` (tested).
+- **Limits.** Member set ≤ 200 IDs (6.4 KB in-object); all operations are O(1) or O(200); no loops over dynamic fields; no arithmetic.
+- **Money.** None held or moved by the module.
 
-- Invite → revoke → re-invite works; invite → decline → re-invite works
-  (markers fully cleared on both paths).
-- Invite at 199 members + 1000 pending invites: accepts beyond 200 abort
-  `EMaxGroupMembersExceeded` at `party.move:332` — capacity enforced at
-  accept, so over-inviting degrades to harmless aborts.
-- `accept_invite` on an individual "group" argument aborts
-  (`assert_is_group_kind`, `party.move:320`); `leave`/`remove_member` on a
-  non-member abort `ENotGroupMember`.
+## Operational requirements
+
+- Share every party returned by `new` in the same programmable transaction; otherwise the transaction fails.
+- Every membership operation mutates two shared objects; expect consensus sequencing on both.
+- Indexers: process a transaction's events as a batch (F4) and treat the cap holder, not the transaction sender, as the party's authority.
+- Keep the `PartyAdminCap` safe; there is no recovery (F3).
 
 ## Verification
 
-- **34/34 unit tests** (`sui move test`, sui 1.77.2), including the
-  AGENTS.md-mandated wrong-cap negatives and full invite/accept/decline/
-  revoke/leave/remove lifecycle coverage.
-- Cross-read of consumers: `party-protocol-actions/party_wallet` (this audit set),
-  `party-protocol-extensions/party_profile`, and the
-  `party-protocol-extensions/AGENTS.md` contract ("gate every write with the cap …
-  through `party::uid_mut(cap)`") — all consistent with what this module enforces.
-
-## Load-bearing assumptions
-
-- Framework dynamic-field semantics (key-value construction privacy,
-  `df::exists_*` honesty) and `derived_object::claim` uniqueness (the cap is
-  a derived object of the party, `party.move:245`).
-- The `created_at_ms` clock read is informational only; no logic depends on
-  it. (Removed in the 2026-09-24 pass below.)
-
-## Minimalism pass — 2026-09-24
-
-**Toolchain:** sui 1.79.0 · **Verification:** 36/36 unit tests, 0 warnings.
-Line references above are to the audited revision. Findings F1–F3 and every
-cleared check were re-verified against the new code; none is weakened.
-
-- **Events** now carry identity only: `PartyCreatedEvent { party_id, name,
-  kind }`, `PartyNameSetEvent { party_id, name }`, and
-  `{ group_id, member_id }` for the six invite/membership events. Dropped
-  fields were derivable: cap ids (derived from the party id under
-  `PartyAdminCapKey`), `creator`/`accepted_by` (tx sender), `created_epoch`
-  (tx epoch), counts and before/after snapshots, always-true marker flags,
-  `old_name`, and `since_epoch`.
-- **Signatures:** `share` and `accept_invite` no longer take `ctx` (their only use was the dropped fields).
-- **`Membership { since_epoch }` removed;** the `MembershipKey` value is a
-  `bool` marker like the pending keys. Key construction stays module-private,
-  so F3 (unforgeability) holds unchanged.
-- **Unreachable checks removed:** `ECantAddSelfAsMember` (41) — the same
-  object cannot be passed twice as `&mut`, and a party cannot be both group
-  and individual; the member-side `df::exists` re-checks of the pending
-  markers and the `df::exists` guard in `remove_membership` — all unreachable
-  under the write-together invariant, which is unchanged (`consume_invite`
-  and `remove_membership` are the only writers).
-- **`set_name`** with the current name is now a silent no-op (no write, no
-  event); authorization and validation still run first.
-- **Public surface removed** (no consumer in `misofm/*` used them):
-  `authorize` (now private), `assert_is_individual_kind` and
-  `assert_is_group_kind` (inlined), `party_kind_name`/`PartyKind.name`,
-  `party_admin_cap_party_id`/`PartyAdminCap.party_id`. `PartyKind` no longer
-  has `copy`.
-- Abort precedence is unchanged for every tested path; `accept_invite` on a
-  non-group still aborts `ENotGroupKind` before `ENoPendingInvite`.
-- **`created_at_ms` removed** from `Party`, its accessor, and
-  `PartyCreatedEvent`, together with the `clock: &Clock` parameter of `new`.
-  Every transaction in a consensus commit reads the same `Clock` value, equal
-  to the event envelope timestamp, so the field duplicated the creating
-  transaction's timestamp. `Party` is now `{ id, kind, name }`; the module
-  no longer depends on `sui::clock`.
-- `PartyCreatedEvent` carries `is_group: bool` instead of a `kind: u8` code,
-  so indexers read the kind without a code table. The event is now
-  `{ party_id, name, is_group }`; `PartyKind` itself is not emitted because
-  its `Group` variant holds the member set, which the membership events
-  already carry.
-
-## Event and style pass — 2026-10-21
-
-**Toolchain:** sui 1.82.1 · **Verification:** 37/37 unit tests, 0 warnings,
-100% coverage. No authorization or validation logic changed.
-
-- `PartyCreatedEvent` is `{ party_id, admin_cap_id, name, is_group }`, so
-  indexers need not compute the cap's derived address.
-- Error codes are contiguous from 0 in declaration order (README lists them);
-  `EUnauthorized` stays 0.
-- Cap-gated mutators sit under Admin Functions; the new accept-at-capacity test
-  covers `EMaxGroupMembersExceeded` in `accept_invite`.
+- `sui move test --coverage`: 37/37 passed, 0 warnings; `sui move coverage summary`: 100.00 % of `party`.
+- `sui move build -e mainnet` and `-e testnet`: both succeed (sui 1.82.1).
+- Throwaway probes (not committed): 12 tests covering wrong caps on every entry point, role confusion, invite/leave/remove cycles, event ordering before `share`, receiving objects through `uid_mut`, and foreign same-shape key types; plus two compile-fail probes for key and `PartyKind::Group` construction.
