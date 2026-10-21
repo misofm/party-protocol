@@ -23,6 +23,10 @@ party.share(&cap); // make it a shared object
 - Individual or group (`new_individual_kind()` / `new_group_kind()`); groups hold member party IDs.
 - All mutations, including naming and consent-based group membership, require the appropriate `PartyAdminCap`. Setting the name to its current value is a silent no-op.
 - Extensible: holders of the cap can reach the party's `&mut UID` (`uid_mut`) to attach domain data.
+- Pending invites and memberships are dynamic fields on both parties under module-private keys, so no extension holding `uid_mut` can forge or scrub them. The member side holds an inbox of invites from groups and its memberships.
+- `is_member(group_id)` reads the member side only and is the member-gated authorization primitive for extensions.
+- `leave` is the member's unconditional exit; `remove_member` scrubs only the member's record for that group.
+- `Party` is `key`-only, so `new()` output must be shared in the same transaction. `Party.name` is unverified; verification is an application concern.
 
 ### Events
 

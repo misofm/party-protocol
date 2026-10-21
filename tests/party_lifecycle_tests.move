@@ -30,7 +30,6 @@ fun share_makes_party_publicly_readable() {
     let group_id = object::id(&group);
     let member_id = object::id(&member);
 
-    // Construction is silent; the creation event waits for the final snapshot.
     assert_eq!(events_by_type<PartyCreatedEvent>().length(), 0);
     group.set_name(&group_cap, b"Final Group".to_string());
     group.invite_party(&group_cap, &mut member);

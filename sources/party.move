@@ -1,15 +1,6 @@
 // Copyright (c) Miso Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// Parties (individuals or groups) that participate in on-chain activities.
-///
-/// A `Party` is a named, shared identity. Every mutation is gated by its
-/// `PartyAdminCap`; `uid_mut` is the extension surface through which other
-/// packages attach data as dynamic fields.
-///
-/// Group membership is consent-based: the group's cap invites, the member's
-/// own cap accepts. Pending invites and memberships are dynamic fields on both
-/// parties under module-private keys, so no extension can forge or scrub them.
 module miso_party::party;
 
 // === Imports ===
@@ -36,7 +27,6 @@ const ENoPendingInvite: u64 = 9;
 // === Constants ===
 
 const MAX_GROUP_MEMBERS: u64 = 200;
-/// In bytes.
 const MAX_NAME_LENGTH: u64 = 200;
 
 // === Structs ===
@@ -44,7 +34,6 @@ const MAX_NAME_LENGTH: u64 = 200;
 public struct Party has key {
     id: UID,
     kind: PartyKind,
-    /// Human-readable and unverified; verification is an application concern.
     name: String,
 }
 
@@ -55,20 +44,14 @@ public struct PartyAdminCap has key, store {
 
 public struct PartyAdminCapKey(ID) has copy, drop, store;
 
-/// On the GROUP: a pending invite to the member with this ID.
 public struct PendingInviteKey(ID) has copy, drop, store;
 
-/// On the MEMBER: a pending invite from the group with this ID — the
-/// member-facing inbox, discoverable without scanning groups.
 public struct PendingMembershipKey(ID) has copy, drop, store;
 
-/// On the MEMBER: membership of the group with this ID. Mirrors the group's
-/// member set; the two are always written together.
 public struct MembershipKey(ID) has copy, drop, store;
 
 // === Enums ===
 
-/// Group members are individual parties.
 public enum PartyKind has drop, store {
     Individual,
     Group(VecSet<ID>),
@@ -76,9 +59,6 @@ public enum PartyKind has drop, store {
 
 // === Events ===
 
-/// Emitted once, when a new party is shared, with its admin cap and final
-/// same-transaction name and kind. Members joined before sharing appear as
-/// `PartyGroupMembershipAcceptedEvent`s in the same transaction.
 public struct PartyCreatedEvent has copy, drop {
     party_id: ID,
     admin_cap_id: ID,
@@ -123,7 +103,6 @@ public struct PartyGroupMembershipRemovedEvent has copy, drop {
 
 // === Public Functions ===
 
-/// `Party` is `key`-only, so it must be shared in the same transaction.
 public fun new(
     kind: PartyKind,
     name: String,
@@ -188,9 +167,6 @@ public fun group_members(self: &Party): &VecSet<ID> {
     }
 }
 
-/// Whether this party holds a membership record for `group_id`. Reads the
-/// member side only, so it is the member-gated authorization primitive for
-/// extensions.
 public fun is_member(self: &Party, group_id: ID): bool {
     df::exists(&self.id, MembershipKey(group_id))
 }
@@ -209,8 +185,6 @@ public fun uid(self: &Party): &UID {
 
 // === Admin Functions ===
 
-/// Setting the current name is a no-op: nothing is written and nothing is
-/// emitted.
 public fun set_name(self: &mut Party, cap: &PartyAdminCap, name: String) {
     self.authorize(cap);
     assert!(!name.is_empty(), EEmptyString);
@@ -220,8 +194,6 @@ public fun set_name(self: &mut Party, cap: &PartyAdminCap, name: String) {
     emit(PartyNameSetEvent { party_id: object::id(self), name });
 }
 
-/// The member joins only through `accept_invite` with its own cap, so no party
-/// becomes a member without consent.
 public fun invite_party(group: &mut Party, group_cap: &PartyAdminCap, member: &mut Party) {
     group.authorize(group_cap);
     let group_id = object::id(group);
@@ -269,7 +241,6 @@ public fun revoke_invite(group: &mut Party, group_cap: &PartyAdminCap, member: &
     });
 }
 
-/// The member's unconditional exit.
 public fun leave(member: &mut Party, member_cap: &PartyAdminCap, group: &mut Party) {
     member.authorize(member_cap);
     remove_membership(group, member);
@@ -279,8 +250,6 @@ public fun leave(member: &mut Party, member_cap: &PartyAdminCap, group: &mut Par
     });
 }
 
-/// Scrubs the member's record for this group only; nothing else on the member
-/// is reachable without its cap.
 public fun remove_member(group: &mut Party, group_cap: &PartyAdminCap, member: &mut Party) {
     group.authorize(group_cap);
     remove_membership(group, member);

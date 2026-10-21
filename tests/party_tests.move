@@ -21,7 +21,6 @@ use miso_party::party::{
 };
 use miso_party::test_helpers;
 
-// Mirror party.move.
 const MAX_NAME_LENGTH: u64 = 200;
 const MAX_GROUP_MEMBERS: u64 = 200;
 
@@ -88,7 +87,7 @@ fun join_group() {
     assert_eq!(group.group_members().length(), 1);
     assert!(group.group_members().contains(&party_id));
     assert!(party::is_member(&individual, object::id(&group)));
-    assert!(!group.has_pending_invite(party_id)); // invite consumed
+    assert!(!group.has_pending_invite(party_id));
     assert!(!party::has_pending_membership(&individual, object::id(&group)));
     assert_eq!(events_by_type<PartyGroupInviteCreatedEvent>().length(), 1);
     assert_eq!(events_by_type<PartyGroupMembershipAcceptedEvent>().length(), 1);
@@ -188,7 +187,7 @@ fun accept_without_invite() {
     let (mut group, group_cap) = test_helpers::group(ctx);
     let (mut member, member_cap) = test_helpers::individual(ctx);
 
-    member.accept_invite(&member_cap, &mut group); // no pending invite
+    member.accept_invite(&member_cap, &mut group);
 
     destroy(group);
     destroy(group_cap);
@@ -204,7 +203,7 @@ fun accept_with_wrong_cap() {
     let (other, other_cap) = test_helpers::individual(ctx);
 
     group.invite_party(&group_cap, &mut member);
-    member.accept_invite(&other_cap, &mut group); // not the member's cap
+    member.accept_invite(&other_cap, &mut group);
 
     destroy(group);
     destroy(group_cap);
@@ -220,7 +219,7 @@ fun accept_on_individual() {
     let (mut party, cap) = test_helpers::individual(ctx);
     let (mut member, member_cap) = test_helpers::individual(ctx);
 
-    member.accept_invite(&member_cap, &mut party); // `party` is not a group
+    member.accept_invite(&member_cap, &mut party);
 
     destroy(party);
     destroy(cap);
@@ -307,8 +306,6 @@ fun invite_exceeds_max_group_members() {
     destroy(group_cap);
 }
 
-/// Capacity is enforced again at accept: a second pending invite cannot join
-/// once the first fills the group.
 #[test, expected_failure(abort_code = party::EMaxGroupMembersExceeded)]
 fun accept_exceeds_max_group_members() {
     let ctx = &mut tx_context::dummy();
@@ -378,7 +375,7 @@ fun invite_already_member() {
     let (mut individual, individual_cap) = test_helpers::individual(ctx);
 
     join(&mut group, &group_cap, &mut individual, &individual_cap);
-    group.invite_party(&group_cap, &mut individual); // already a member
+    group.invite_party(&group_cap, &mut individual);
 
     destroy(group);
     destroy(group_cap);
@@ -393,7 +390,7 @@ fun invite_duplicate_pending() {
     let (mut individual, individual_cap) = test_helpers::individual(ctx);
 
     group.invite_party(&group_cap, &mut individual);
-    group.invite_party(&group_cap, &mut individual); // already invited (pending)
+    group.invite_party(&group_cap, &mut individual);
 
     destroy(group);
     destroy(group_cap);
@@ -449,7 +446,6 @@ fun unauthorized_equal_name_write() {
     let (mut party1, cap1) = test_helpers::individual(ctx);
     let (party2, cap2) = test_helpers::individual(ctx);
 
-    // Authorization remains mandatory even when the requested name is equal.
     party1.set_name(&cap2, b"Test Artist".to_string());
 
     destroy(party1);
@@ -464,7 +460,7 @@ fun remove_member_on_individual() {
     let (mut party, cap) = test_helpers::individual(ctx);
     let (mut member, member_cap) = test_helpers::individual(ctx);
 
-    party.remove_member(&cap, &mut member); // `party` is not a group
+    party.remove_member(&cap, &mut member);
 
     destroy(party);
     destroy(cap);
@@ -477,7 +473,7 @@ fun group_members_on_individual() {
     let ctx = &mut tx_context::dummy();
     let (party, cap) = test_helpers::individual(ctx);
 
-    party.group_members(); // should abort
+    party.group_members();
 
     destroy(party);
     destroy(cap);
@@ -512,7 +508,7 @@ fun leave_not_a_member() {
     let (mut group, group_cap) = test_helpers::group(ctx);
     let (mut outsider, outsider_cap) = test_helpers::individual(ctx);
 
-    outsider.leave(&outsider_cap, &mut group); // never joined
+    outsider.leave(&outsider_cap, &mut group);
 
     destroy(group);
     destroy(group_cap);
@@ -526,7 +522,7 @@ fun leave_on_individual() {
     let (mut individual, individual_cap) = test_helpers::individual(ctx);
     let (mut member, member_cap) = test_helpers::individual(ctx);
 
-    member.leave(&member_cap, &mut individual); // `individual` is not a group
+    member.leave(&member_cap, &mut individual);
 
     destroy(individual);
     destroy(individual_cap);
@@ -540,7 +536,7 @@ fun remove_member_not_a_member() {
     let (mut group, group_cap) = test_helpers::group(ctx);
     let (mut outsider, outsider_cap) = test_helpers::individual(ctx);
 
-    group.remove_member(&group_cap, &mut outsider); // never joined
+    group.remove_member(&group_cap, &mut outsider);
 
     destroy(group);
     destroy(group_cap);
