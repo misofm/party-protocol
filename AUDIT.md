@@ -114,10 +114,10 @@ No other findings. Specifically checked and cleared:
 - **34/34 unit tests** (`sui move test`, sui 1.77.2), including the
   AGENTS.md-mandated wrong-cap negatives and full invite/accept/decline/
   revoke/leave/remove lifecycle coverage.
-- Cross-read of consumers: `partyos-extensions/party_wallet` (this audit set),
-  `party_profile`, and the `partyos-extensions/AGENTS.md` contract ("gate every
-  write with the cap … through `party::uid_mut(cap)`") — all consistent with
-  what this module enforces.
+- Cross-read of consumers: `party-protocol-actions/party_wallet` (this audit set),
+  `party-protocol-extensions/party_profile`, and the
+  `party-protocol-extensions/AGENTS.md` contract ("gate every write with the cap …
+  through `party::uid_mut(cap)`") — all consistent with what this module enforces.
 
 ## Load-bearing assumptions
 

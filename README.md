@@ -51,7 +51,7 @@ miso_party = { git = "https://github.com/misofm/party-protocol.git", rev = "<com
 
 Pin `rev` to the exact commit reviewed by your application. Party profile and
 presentation slices live in
-[misofm/partyos-extensions](https://github.com/misofm/partyos-extensions).
+[misofm/party-protocol-extensions](https://github.com/misofm/party-protocol-extensions).
 
 ## TypeScript SDK
 
