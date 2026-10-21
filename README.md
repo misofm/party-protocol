@@ -26,21 +26,27 @@ party.share(&cap); // make it a shared object
 
 ### Events
 
-Events carry only what an indexer cannot derive from the event type, the
-transaction envelope, or earlier Party events:
+An indexer can build and maintain a party's name, kind, member set and pending
+invites from these events and the transaction envelope alone, with no object
+reads:
 
-| Event | Fields |
-|---|---|
-| `PartyCreatedEvent` | `party_id`, `name`, `is_group` |
-| `PartyNameSetEvent` | `party_id`, `name` |
-| `PartyGroupInviteCreatedEvent`, `…InviteDeclinedEvent`, `…InviteRevokedEvent` | `group_id`, `member_id` |
-| `PartyGroupMembershipAcceptedEvent`, `…MembershipLeftEvent`, `…MembershipRemovedEvent` | `group_id`, `member_id` |
+| Event | Fields | Max size |
+|---|---|---|
+| `PartyCreatedEvent` | `party_id: ID`, `name: String`, `is_group: bool` | 235 B |
+| `PartyNameSetEvent` | `party_id: ID`, `name: String` | 234 B |
+| `PartyGroupInviteCreatedEvent`, `…InviteDeclinedEvent`, `…InviteRevokedEvent` | `group_id: ID`, `member_id: ID` | 64 B |
+| `PartyGroupMembershipAcceptedEvent`, `…MembershipLeftEvent`, `…MembershipRemovedEvent` | `group_id: ID`, `member_id: ID` | 64 B |
 
-The admin cap's id is derived from the party id under `PartyAdminCapKey`; the
-sender, epoch and creation time come from the transaction. Members that join before `share()`
-appear as `PartyGroupMembershipAcceptedEvent`s in the same transaction, so a
-party's name, kind, member set and pending invites are all replayable from
-events alone.
+Names are at most 200 bytes. Each membership event is a delta applied in order:
+an invite adds a pending invite; accepting removes it and adds the member;
+declining or revoking removes it; leaving or removal drops the member. A group
+is created empty, and members that join before `share()` appear as
+`PartyGroupMembershipAcceptedEvent`s in the same transaction. Setting the
+current name emits nothing.
+
+The admin cap's ID is not emitted: it is
+`sui::derived_object::derive_address(party_id, PartyAdminCapKey(party_id))`.
+Sender and time come from the transaction.
 
 ## Install
 
@@ -57,8 +63,7 @@ presentation slices live in
 
 Party bindings, reads, and composable transaction builders are included in
 [`@misofm/protocol`](https://github.com/misofm/sdks) and are exposed through
-`client.miso.party`. This repository no longer publishes a separate TypeScript
-package.
+`client.miso.party`.
 
 ## Build & test
 
