@@ -1,8 +1,11 @@
+// Copyright (c) Miso Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 #[test_only]
 module miso_party::test_helpers;
 
-use miso_party::party::{Self, Party, PartyAdminCap, PartyKind};
 use std::string::String;
+use miso_party::party::{Self, Party, PartyAdminCap, PartyKind};
 
 /// An individual party named "Test Artist".
 public fun individual(ctx: &mut TxContext): (Party, PartyAdminCap) {

@@ -32,7 +32,7 @@ reads:
 
 | Event | Fields | Max size |
 |---|---|---|
-| `PartyCreatedEvent` | `party_id: ID`, `name: String`, `is_group: bool` | 235 B |
+| `PartyCreatedEvent` | `party_id: ID`, `admin_cap_id: ID`, `name: String`, `is_group: bool` | 267 B |
 | `PartyNameSetEvent` | `party_id: ID`, `name: String` | 234 B |
 | `PartyGroupInviteCreatedEvent`, `…InviteDeclinedEvent`, `…InviteRevokedEvent` | `group_id: ID`, `member_id: ID` | 64 B |
 | `PartyGroupMembershipAcceptedEvent`, `…MembershipLeftEvent`, `…MembershipRemovedEvent` | `group_id: ID`, `member_id: ID` | 64 B |
@@ -44,9 +44,24 @@ is created empty, and members that join before `share()` appear as
 `PartyGroupMembershipAcceptedEvent`s in the same transaction. Setting the
 current name emits nothing.
 
-The admin cap's ID is not emitted: it is
+`PartyCreatedEvent` carries the admin cap's ID, which is also
 `sui::derived_object::derive_address(party_id, PartyAdminCapKey(party_id))`.
 Sender and time come from the transaction.
+
+### Errors
+
+| Code | Constant | Meaning |
+|---|---|---|
+| 0 | `EUnauthorized` | The admin cap does not match the party |
+| 1 | `ENotIndividualKind` | Operation requires an individual party |
+| 2 | `ENotGroupKind` | Operation requires a group party |
+| 3 | `EMaxGroupMembersExceeded` | Group already has 200 members |
+| 4 | `EMaxNameLengthExceeded` | Name is longer than 200 bytes |
+| 5 | `EEmptyString` | Name is empty |
+| 6 | `EDuplicateParty` | Party is already a member |
+| 7 | `EAlreadyInvited` | Party already has a pending invite to the group |
+| 8 | `ENotGroupMember` | Party is not a member of the group |
+| 9 | `ENoPendingInvite` | No pending invite for the party in the group |
 
 ## Install
 

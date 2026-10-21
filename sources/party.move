@@ -12,11 +12,43 @@
 /// parties under module-private keys, so no extension can forge or scrub them.
 module miso_party::party;
 
+// === Imports ===
+
 use std::string::String;
 use sui::derived_object::claim;
 use sui::dynamic_field as df;
 use sui::event::emit;
 use sui::vec_set::{Self, VecSet};
+
+// === Errors ===
+
+/// The admin capability does not match this party.
+const EUnauthorized: u64 = 0;
+/// Operation requires an individual party.
+const ENotIndividualKind: u64 = 1;
+/// Operation requires a group party.
+const ENotGroupKind: u64 = 2;
+/// Group is full.
+const EMaxGroupMembersExceeded: u64 = 3;
+/// Name exceeds maximum length.
+const EMaxNameLengthExceeded: u64 = 4;
+/// Name must not be empty.
+const EEmptyString: u64 = 5;
+/// The party is already a member of the group.
+const EDuplicateParty: u64 = 6;
+/// The party already has a pending invite to this group.
+const EAlreadyInvited: u64 = 7;
+/// The party is not a member of the group.
+const ENotGroupMember: u64 = 8;
+/// No pending invite exists for the party in this group.
+const ENoPendingInvite: u64 = 9;
+
+// === Constants ===
+
+/// Maximum number of members in a group.
+const MAX_GROUP_MEMBERS: u64 = 200;
+/// Maximum party name length in bytes.
+const MAX_NAME_LENGTH: u64 = 200;
 
 // === Structs ===
 
@@ -37,8 +69,6 @@ public struct PartyAdminCap has key, store {
 
 /// Derivation key for `PartyAdminCap`, holding the party's ID.
 public struct PartyAdminCapKey(ID) has copy, drop, store;
-
-// === Dynamic-Field Keys ===
 
 /// On the GROUP: a pending invite to the member with this ID.
 public struct PendingInviteKey(ID) has copy, drop, store;
@@ -61,11 +91,12 @@ public enum PartyKind has drop, store {
 
 // === Events ===
 
-/// Emitted once, when a new party is shared, with its final same-transaction
-/// name and kind. Members joined before sharing appear as
+/// Emitted once, when a new party is shared, with its admin cap and final
+/// same-transaction name and kind. Members joined before sharing appear as
 /// `PartyGroupMembershipAcceptedEvent`s in the same transaction.
 public struct PartyCreatedEvent has copy, drop {
     party_id: ID,
+    admin_cap_id: ID,
     name: String,
     /// Whether the party is a group (otherwise an individual).
     is_group: bool,
@@ -113,45 +144,6 @@ public struct PartyGroupMembershipRemovedEvent has copy, drop {
     member_id: ID,
 }
 
-// === Constants ===
-
-/// Maximum number of members in a group.
-const MAX_GROUP_MEMBERS: u64 = 200;
-/// Maximum party name length in bytes.
-const MAX_NAME_LENGTH: u64 = 200;
-
-// === Errors ===
-
-// Authorization errors (0-9)
-/// The admin capability does not match this party.
-const EUnauthorized: u64 = 0;
-
-// State errors (10-19)
-/// Operation requires an individual party.
-const ENotIndividualKind: u64 = 10;
-/// Operation requires a group party.
-const ENotGroupKind: u64 = 11;
-
-// Constraint errors (30-39)
-/// Group is full.
-const EMaxGroupMembersExceeded: u64 = 30;
-/// Name exceeds maximum length.
-const EMaxNameLengthExceeded: u64 = 31;
-/// Name must not be empty.
-const EEmptyString: u64 = 32;
-
-// Conflict errors (40-49)
-/// The party is already a member of the group.
-const EDuplicateParty: u64 = 40;
-/// The party already has a pending invite to this group.
-const EAlreadyInvited: u64 = 42;
-
-// Reference errors (50-59)
-/// The party is not a member of the group.
-const ENotGroupMember: u64 = 50;
-/// No pending invite exists for the party in this group.
-const ENoPendingInvite: u64 = 51;
-
 // === Public Functions ===
 
 /// Creates a party and its admin cap. The party is `key`-only, so it must be
@@ -182,11 +174,74 @@ public fun share(self: Party, cap: &PartyAdminCap) {
     self.authorize(cap);
     emit(PartyCreatedEvent {
         party_id: object::id(&self),
+        admin_cap_id: object::id(cap),
         name: self.name,
         is_group: self.is_group_kind(),
     });
     transfer::share_object(self);
 }
+
+/// An individual party kind.
+public fun new_individual_kind(): PartyKind {
+    PartyKind::Individual
+}
+
+/// A group party kind with no members.
+public fun new_group_kind(): PartyKind {
+    PartyKind::Group(vec_set::empty())
+}
+
+// === View Functions ===
+
+/// The party's name.
+public fun name(self: &Party): String {
+    self.name
+}
+
+/// Whether the party is an individual.
+public fun is_individual_kind(self: &Party): bool {
+    !self.is_group_kind()
+}
+
+/// Whether the party is a group.
+public fun is_group_kind(self: &Party): bool {
+    match (&self.kind) {
+        PartyKind::Group(_) => true,
+        _ => false,
+    }
+}
+
+/// The group's member set. Aborts if not a group.
+public fun group_members(self: &Party): &VecSet<ID> {
+    match (&self.kind) {
+        PartyKind::Group(members) => members,
+        _ => abort ENotGroupKind,
+    }
+}
+
+/// Whether `member` holds a membership record for `group_id`. Reads the
+/// member side only, so it is the member-gated authorization primitive for
+/// extensions.
+public fun is_member(member: &Party, group_id: ID): bool {
+    df::exists(&member.id, MembershipKey(group_id))
+}
+
+/// Whether the group has a pending invite for `member_id`.
+public fun has_pending_invite(group: &Party, member_id: ID): bool {
+    df::exists(&group.id, PendingInviteKey(member_id))
+}
+
+/// Whether the member has a pending invite from `group_id`.
+public fun has_pending_membership(member: &Party, group_id: ID): bool {
+    df::exists(&member.id, PendingMembershipKey(group_id))
+}
+
+/// The party's UID, for reading dynamic fields.
+public fun uid(self: &Party): &UID {
+    &self.id
+}
+
+// === Admin Functions ===
 
 /// Renames the party. Setting the current name is a no-op: nothing is
 /// written and nothing is emitted.
@@ -275,65 +330,6 @@ public fun remove_member(group: &mut Party, group_cap: &PartyAdminCap, member: &
     });
 }
 
-/// An individual party kind.
-public fun new_individual_kind(): PartyKind {
-    PartyKind::Individual
-}
-
-/// A group party kind with no members.
-public fun new_group_kind(): PartyKind {
-    PartyKind::Group(vec_set::empty())
-}
-
-// === Public View Functions ===
-
-public fun name(self: &Party): String {
-    self.name
-}
-
-public fun is_individual_kind(self: &Party): bool {
-    !self.is_group_kind()
-}
-
-public fun is_group_kind(self: &Party): bool {
-    match (&self.kind) {
-        PartyKind::Group(_) => true,
-        _ => false,
-    }
-}
-
-/// The group's member set. Aborts if not a group.
-public fun group_members(self: &Party): &VecSet<ID> {
-    match (&self.kind) {
-        PartyKind::Group(members) => members,
-        _ => abort ENotGroupKind,
-    }
-}
-
-/// Whether `member` holds a membership record for `group_id`. Reads the
-/// member side only, so it is the member-gated authorization primitive for
-/// extensions.
-public fun is_member(member: &Party, group_id: ID): bool {
-    df::exists(&member.id, MembershipKey(group_id))
-}
-
-/// Whether the group has a pending invite for `member_id`.
-public fun has_pending_invite(group: &Party, member_id: ID): bool {
-    df::exists(&group.id, PendingInviteKey(member_id))
-}
-
-/// Whether the member has a pending invite from `group_id`.
-public fun has_pending_membership(member: &Party, group_id: ID): bool {
-    df::exists(&member.id, PendingMembershipKey(group_id))
-}
-
-// === UID Functions ===
-
-/// The party's UID, for reading dynamic fields.
-public fun uid(self: &Party): &UID {
-    &self.id
-}
-
 /// The party's UID for dynamic-field writes: the extension surface. Requires
 /// the admin cap.
 public fun uid_mut(self: &mut Party, cap: &PartyAdminCap): &mut UID {
@@ -343,6 +339,7 @@ public fun uid_mut(self: &mut Party, cap: &PartyAdminCap): &mut UID {
 
 // === Private Functions ===
 
+/// Aborts with `EUnauthorized` unless `cap` controls this party.
 fun authorize(self: &Party, cap: &PartyAdminCap) {
     assert!(cap.party_id == object::id(self), EUnauthorized);
 }
@@ -374,12 +371,14 @@ fun remove_membership(group: &mut Party, member: &mut Party) {
     let _: bool = df::remove(&mut member.id, MembershipKey(group_id));
 }
 
-// === Test Only ===
+// === Test Functions ===
 
+/// Unpacks a `PartyCreatedEvent` (fields are module-private) for test
+/// assertions.
 #[test_only]
-public fun created_event_fields(event: PartyCreatedEvent): (ID, String, bool) {
-    let PartyCreatedEvent { party_id, name, is_group } = event;
-    (party_id, name, is_group)
+public fun party_created_event_fields(event: PartyCreatedEvent): (ID, ID, String, bool) {
+    let PartyCreatedEvent { party_id, admin_cap_id, name, is_group } = event;
+    (party_id, admin_cap_id, name, is_group)
 }
 
 /// A group pre-filled with `n` fake member IDs.

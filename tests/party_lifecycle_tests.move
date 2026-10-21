@@ -7,6 +7,10 @@
 #[test_only]
 module miso_party::party_lifecycle_tests;
 
+use std::unit_test::{assert_eq, destroy};
+use sui::dynamic_field;
+use sui::event::events_by_type;
+use sui::test_scenario;
 use miso_party::party::{
     Self,
     Party,
@@ -17,16 +21,9 @@ use miso_party::party::{
     PartyNameSetEvent,
 };
 use miso_party::test_helpers;
-use std::unit_test::{assert_eq, destroy};
-use sui::dynamic_field;
-use sui::event::events_by_type;
-use sui::test_scenario;
 
 const OWNER: address = @0xA1;
 const READER: address = @0xB2;
-
-// Error codes from party.move
-const EUnauthorized: u64 = 0;
 
 #[test]
 fun share_makes_party_publicly_readable() {
@@ -47,8 +44,10 @@ fun share_makes_party_publicly_readable() {
     group.share(&group_cap);
     let mut events = events_by_type<PartyCreatedEvent>();
     assert_eq!(events.length(), 1);
-    let (event_party_id, event_name, event_is_group) = party::created_event_fields(events.pop_back());
+    let (event_party_id, event_admin_cap_id, event_name, event_is_group) =
+        party::party_created_event_fields(events.pop_back());
     assert_eq!(event_party_id, group_id);
+    assert_eq!(event_admin_cap_id, object::id(&group_cap));
     assert_eq!(event_name, b"Final Group".to_string());
     assert!(event_is_group);
 
@@ -106,7 +105,7 @@ fun uid_mut_attaches_dynamic_fields_on_shared_party() {
     scenario.end();
 }
 
-#[test, expected_failure(abort_code = EUnauthorized, location = party)]
+#[test, expected_failure(abort_code = party::EUnauthorized)]
 fun share_rejects_wrong_cap() {
     let ctx = &mut tx_context::dummy();
     let (party, cap) = test_helpers::individual(ctx);

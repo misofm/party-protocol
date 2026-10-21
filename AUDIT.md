@@ -171,3 +171,15 @@ cleared check were re-verified against the new code; none is weakened.
   `{ party_id, name, is_group }`; `PartyKind` itself is not emitted because
   its `Group` variant holds the member set, which the membership events
   already carry.
+
+## Event and style pass — 2026-10-21
+
+**Toolchain:** sui 1.82.1 · **Verification:** 37/37 unit tests, 0 warnings,
+100% coverage. No authorization or validation logic changed.
+
+- `PartyCreatedEvent` is `{ party_id, admin_cap_id, name, is_group }`, so
+  indexers need not compute the cap's derived address.
+- Error codes are contiguous from 0 in declaration order (README lists them);
+  `EUnauthorized` stays 0.
+- Cap-gated mutators sit under Admin Functions; the new accept-at-capacity test
+  covers `EMaxGroupMembersExceeded` in `accept_invite`.
