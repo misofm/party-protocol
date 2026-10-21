@@ -188,19 +188,19 @@ public fun group_members(self: &Party): &VecSet<ID> {
     }
 }
 
-/// Whether `member` holds a membership record for `group_id`. Reads the
+/// Whether this party holds a membership record for `group_id`. Reads the
 /// member side only, so it is the member-gated authorization primitive for
 /// extensions.
-public fun is_member(member: &Party, group_id: ID): bool {
-    df::exists(&member.id, MembershipKey(group_id))
+public fun is_member(self: &Party, group_id: ID): bool {
+    df::exists(&self.id, MembershipKey(group_id))
 }
 
-public fun has_pending_invite(group: &Party, member_id: ID): bool {
-    df::exists(&group.id, PendingInviteKey(member_id))
+public fun has_pending_invite(self: &Party, member_id: ID): bool {
+    df::exists(&self.id, PendingInviteKey(member_id))
 }
 
-public fun has_pending_membership(member: &Party, group_id: ID): bool {
-    df::exists(&member.id, PendingMembershipKey(group_id))
+public fun has_pending_membership(self: &Party, group_id: ID): bool {
+    df::exists(&self.id, PendingMembershipKey(group_id))
 }
 
 public fun uid(self: &Party): &UID {
@@ -222,7 +222,7 @@ public fun set_name(self: &mut Party, cap: &PartyAdminCap, name: String) {
 
 /// The member joins only through `accept_invite` with its own cap, so no party
 /// becomes a member without consent.
-public fun invite_party(group: &mut Party, member: &mut Party, group_cap: &PartyAdminCap) {
+public fun invite_party(group: &mut Party, group_cap: &PartyAdminCap, member: &mut Party) {
     group.authorize(group_cap);
     let group_id = object::id(group);
     let member_id = object::id(member);
@@ -237,7 +237,7 @@ public fun invite_party(group: &mut Party, member: &mut Party, group_cap: &Party
     emit(PartyGroupInviteCreatedEvent { group_id, member_id });
 }
 
-public fun accept_invite(group: &mut Party, member: &mut Party, member_cap: &PartyAdminCap) {
+public fun accept_invite(member: &mut Party, member_cap: &PartyAdminCap, group: &mut Party) {
     member.authorize(member_cap);
     assert!(group.is_group_kind(), ENotGroupKind);
     let group_id = object::id(group);
@@ -251,7 +251,7 @@ public fun accept_invite(group: &mut Party, member: &mut Party, member_cap: &Par
     emit(PartyGroupMembershipAcceptedEvent { group_id, member_id });
 }
 
-public fun decline_invite(group: &mut Party, member: &mut Party, member_cap: &PartyAdminCap) {
+public fun decline_invite(member: &mut Party, member_cap: &PartyAdminCap, group: &mut Party) {
     member.authorize(member_cap);
     consume_invite(group, member);
     emit(PartyGroupInviteDeclinedEvent {
@@ -260,7 +260,7 @@ public fun decline_invite(group: &mut Party, member: &mut Party, member_cap: &Pa
     });
 }
 
-public fun revoke_invite(group: &mut Party, member: &mut Party, group_cap: &PartyAdminCap) {
+public fun revoke_invite(group: &mut Party, group_cap: &PartyAdminCap, member: &mut Party) {
     group.authorize(group_cap);
     consume_invite(group, member);
     emit(PartyGroupInviteRevokedEvent {
@@ -270,7 +270,7 @@ public fun revoke_invite(group: &mut Party, member: &mut Party, group_cap: &Part
 }
 
 /// The member's unconditional exit.
-public fun leave(group: &mut Party, member: &mut Party, member_cap: &PartyAdminCap) {
+public fun leave(member: &mut Party, member_cap: &PartyAdminCap, group: &mut Party) {
     member.authorize(member_cap);
     remove_membership(group, member);
     emit(PartyGroupMembershipLeftEvent {

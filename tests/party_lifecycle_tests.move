@@ -33,8 +33,8 @@ fun share_makes_party_publicly_readable() {
     // Construction is silent; the creation event waits for the final snapshot.
     assert_eq!(events_by_type<PartyCreatedEvent>().length(), 0);
     group.set_name(&group_cap, b"Final Group".to_string());
-    group.invite_party(&mut member, &group_cap);
-    group.accept_invite(&mut member, &member_cap);
+    group.invite_party(&group_cap, &mut member);
+    member.accept_invite(&member_cap, &mut group);
     assert_eq!(group.group_members().length(), 1);
     assert_eq!(events_by_type<PartyCreatedEvent>().length(), 0);
 
@@ -123,8 +123,8 @@ fun member_joins_and_leaves_shared_group() {
     scenario.next_tx(OWNER);
     let mut group = scenario.take_shared_by_id<Party>(group_id);
     let mut member = scenario.take_shared_by_id<Party>(member_id);
-    group.invite_party(&mut member, &group_cap);
-    group.accept_invite(&mut member, &member_cap);
+    group.invite_party(&group_cap, &mut member);
+    member.accept_invite(&member_cap, &mut group);
     assert_eq!(group.group_members().length(), 1);
     assert!(member.is_member(group_id));
     assert_eq!(events_by_type<PartyGroupInviteCreatedEvent>().length(), 1);
@@ -135,7 +135,7 @@ fun member_joins_and_leaves_shared_group() {
     scenario.next_tx(READER);
     let mut group = scenario.take_shared_by_id<Party>(group_id);
     let mut member = scenario.take_shared_by_id<Party>(member_id);
-    group.leave(&mut member, &member_cap);
+    member.leave(&member_cap, &mut group);
     assert!(!group.group_members().contains(&member_id));
     assert!(!member.is_member(group_id));
     assert_eq!(events_by_type<PartyGroupMembershipLeftEvent>().length(), 1);

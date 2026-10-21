@@ -31,8 +31,8 @@ fun join(
     member: &mut Party,
     member_cap: &PartyAdminCap,
 ) {
-    group.invite_party(member, group_cap);
-    group.accept_invite(member, member_cap);
+    group.invite_party(group_cap, member);
+    member.accept_invite(member_cap, group);
 }
 
 // === Individual Party ===
@@ -131,19 +131,19 @@ fun decline_invite() {
     let (mut group, group_cap) = test_helpers::group(ctx);
     let (mut member, member_cap) = test_helpers::individual(ctx);
 
-    group.invite_party(&mut member, &group_cap);
+    group.invite_party(&group_cap, &mut member);
     assert!(group.has_pending_invite(object::id(&member)));
     assert!(party::has_pending_membership(&member, object::id(&group)));
 
-    group.decline_invite(&mut member, &member_cap);
+    member.decline_invite(&member_cap, &mut group);
     assert!(!group.has_pending_invite(object::id(&member)));
     assert!(!party::has_pending_membership(&member, object::id(&group)));
     assert_eq!(group.group_members().length(), 0);
     assert_eq!(events_by_type<PartyGroupInviteCreatedEvent>().length(), 1);
     assert_eq!(events_by_type<PartyGroupInviteDeclinedEvent>().length(), 1);
 
-    group.invite_party(&mut member, &group_cap);
-    group.accept_invite(&mut member, &member_cap);
+    group.invite_party(&group_cap, &mut member);
+    member.accept_invite(&member_cap, &mut group);
     assert!(party::is_member(&member, object::id(&group)));
     assert_eq!(events_by_type<PartyGroupInviteCreatedEvent>().length(), 2);
     assert_eq!(events_by_type<PartyGroupMembershipAcceptedEvent>().length(), 1);
@@ -161,18 +161,18 @@ fun revoke_invite() {
     let (mut member, member_cap) = test_helpers::individual(ctx);
 
     let member_id = object::id(&member);
-    group.invite_party(&mut member, &group_cap);
+    group.invite_party(&group_cap, &mut member);
     assert!(group.has_pending_invite(member_id));
     assert!(party::has_pending_membership(&member, object::id(&group)));
 
-    group.revoke_invite(&mut member, &group_cap);
+    group.revoke_invite(&group_cap, &mut member);
     assert!(!group.has_pending_invite(member_id));
     assert!(!party::has_pending_membership(&member, object::id(&group)));
     assert_eq!(events_by_type<PartyGroupInviteCreatedEvent>().length(), 1);
     assert_eq!(events_by_type<PartyGroupInviteRevokedEvent>().length(), 1);
 
-    group.invite_party(&mut member, &group_cap);
-    group.decline_invite(&mut member, &member_cap);
+    group.invite_party(&group_cap, &mut member);
+    member.decline_invite(&member_cap, &mut group);
     assert_eq!(events_by_type<PartyGroupInviteCreatedEvent>().length(), 2);
     assert_eq!(events_by_type<PartyGroupInviteDeclinedEvent>().length(), 1);
 
@@ -188,7 +188,7 @@ fun accept_without_invite() {
     let (mut group, group_cap) = test_helpers::group(ctx);
     let (mut member, member_cap) = test_helpers::individual(ctx);
 
-    group.accept_invite(&mut member, &member_cap); // no pending invite
+    member.accept_invite(&member_cap, &mut group); // no pending invite
 
     destroy(group);
     destroy(group_cap);
@@ -203,8 +203,8 @@ fun accept_with_wrong_cap() {
     let (mut member, member_cap) = test_helpers::individual(ctx);
     let (other, other_cap) = test_helpers::individual(ctx);
 
-    group.invite_party(&mut member, &group_cap);
-    group.accept_invite(&mut member, &other_cap); // not the member's cap
+    group.invite_party(&group_cap, &mut member);
+    member.accept_invite(&other_cap, &mut group); // not the member's cap
 
     destroy(group);
     destroy(group_cap);
@@ -220,7 +220,7 @@ fun accept_on_individual() {
     let (mut party, cap) = test_helpers::individual(ctx);
     let (mut member, member_cap) = test_helpers::individual(ctx);
 
-    party.accept_invite(&mut member, &member_cap); // `party` is not a group
+    member.accept_invite(&member_cap, &mut party); // `party` is not a group
 
     destroy(party);
     destroy(cap);
@@ -299,7 +299,7 @@ fun invite_exceeds_max_group_members() {
     );
 
     let (mut individual, individual_cap) = test_helpers::individual(ctx);
-    group.invite_party(&mut individual, &group_cap);
+    group.invite_party(&group_cap, &mut individual);
 
     destroy(individual);
     destroy(individual_cap);
@@ -318,10 +318,10 @@ fun accept_exceeds_max_group_members() {
     );
     let (mut first, first_cap) = test_helpers::individual(ctx);
     let (mut second, second_cap) = test_helpers::individual(ctx);
-    group.invite_party(&mut first, &group_cap);
-    group.invite_party(&mut second, &group_cap);
-    group.accept_invite(&mut first, &first_cap);
-    group.accept_invite(&mut second, &second_cap);
+    group.invite_party(&group_cap, &mut first);
+    group.invite_party(&group_cap, &mut second);
+    first.accept_invite(&first_cap, &mut group);
+    second.accept_invite(&second_cap, &mut group);
 
     destroy(group);
     destroy(group_cap);
@@ -378,7 +378,7 @@ fun invite_already_member() {
     let (mut individual, individual_cap) = test_helpers::individual(ctx);
 
     join(&mut group, &group_cap, &mut individual, &individual_cap);
-    group.invite_party(&mut individual, &group_cap); // already a member
+    group.invite_party(&group_cap, &mut individual); // already a member
 
     destroy(group);
     destroy(group_cap);
@@ -392,8 +392,8 @@ fun invite_duplicate_pending() {
     let (mut group, group_cap) = test_helpers::group(ctx);
     let (mut individual, individual_cap) = test_helpers::individual(ctx);
 
-    group.invite_party(&mut individual, &group_cap);
-    group.invite_party(&mut individual, &group_cap); // already invited (pending)
+    group.invite_party(&group_cap, &mut individual);
+    group.invite_party(&group_cap, &mut individual); // already invited (pending)
 
     destroy(group);
     destroy(group_cap);
@@ -407,7 +407,7 @@ fun invite_on_individual() {
     let (mut party1, cap1) = test_helpers::individual(ctx);
     let (mut party2, cap2) = test_helpers::individual(ctx);
 
-    party1.invite_party(&mut party2, &cap1);
+    party1.invite_party(&cap1, &mut party2);
 
     destroy(party1);
     destroy(cap1);
@@ -421,7 +421,7 @@ fun invite_group_as_member() {
     let (mut group1, cap1) = test_helpers::group(ctx);
     let (mut group2, cap2) = test_helpers::group(ctx);
 
-    group1.invite_party(&mut group2, &cap1);
+    group1.invite_party(&cap1, &mut group2);
 
     destroy(group1);
     destroy(cap1);
@@ -494,7 +494,7 @@ fun leave_group() {
     join(&mut group, &group_cap, &mut member, &member_cap);
     assert_eq!(group.group_members().length(), 1);
 
-    group.leave(&mut member, &member_cap);
+    member.leave(&member_cap, &mut group);
     assert_eq!(group.group_members().length(), 0);
     assert!(!party::is_member(&member, object::id(&group)));
     assert_eq!(events_by_type<PartyGroupMembershipLeftEvent>().length(), 1);
@@ -512,7 +512,7 @@ fun leave_not_a_member() {
     let (mut group, group_cap) = test_helpers::group(ctx);
     let (mut outsider, outsider_cap) = test_helpers::individual(ctx);
 
-    group.leave(&mut outsider, &outsider_cap); // never joined
+    outsider.leave(&outsider_cap, &mut group); // never joined
 
     destroy(group);
     destroy(group_cap);
@@ -526,7 +526,7 @@ fun leave_on_individual() {
     let (mut individual, individual_cap) = test_helpers::individual(ctx);
     let (mut member, member_cap) = test_helpers::individual(ctx);
 
-    individual.leave(&mut member, &member_cap); // `individual` is not a group
+    member.leave(&member_cap, &mut individual); // `individual` is not a group
 
     destroy(individual);
     destroy(individual_cap);
