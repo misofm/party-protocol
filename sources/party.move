@@ -10,7 +10,7 @@
 /// Group membership is consent-based: the group's cap invites, the member's
 /// own cap accepts. Pending invites and memberships are dynamic fields on both
 /// parties under module-private keys, so no extension can forge or scrub them.
-module partyos::party;
+module miso_party::party;
 
 use std::string::String;
 use sui::derived_object::claim;

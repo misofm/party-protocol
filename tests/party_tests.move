@@ -1,7 +1,7 @@
 #[test_only]
-module partyos::party_tests;
+module miso_party::party_tests;
 
-use partyos::party::{
+use miso_party::party::{
     Self,
     Party,
     PartyAdminCap,
@@ -14,7 +14,7 @@ use partyos::party::{
     PartyGroupMembershipRemovedEvent,
     PartyNameSetEvent,
 };
-use partyos::test_helpers;
+use miso_party::test_helpers;
 use std::unit_test::{assert_eq, destroy};
 use sui::event::events_by_type;
 

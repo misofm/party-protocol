@@ -1,7 +1,7 @@
 #[test_only]
-module partyos::test_helpers;
+module miso_party::test_helpers;
 
-use partyos::party::{Self, Party, PartyAdminCap, PartyKind};
+use miso_party::party::{Self, Party, PartyAdminCap, PartyKind};
 use std::string::String;
 
 /// An individual party named "Test Artist".

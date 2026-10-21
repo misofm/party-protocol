@@ -5,9 +5,9 @@
 /// in: share, post-share mutation, group editing, and the dynamic-field
 /// extension surface.
 #[test_only]
-module partyos::party_lifecycle_tests;
+module miso_party::party_lifecycle_tests;
 
-use partyos::party::{
+use miso_party::party::{
     Self,
     Party,
     PartyCreatedEvent,
@@ -16,7 +16,7 @@ use partyos::party::{
     PartyGroupMembershipLeftEvent,
     PartyNameSetEvent,
 };
-use partyos::test_helpers;
+use miso_party::test_helpers;
 use std::unit_test::{assert_eq, destroy};
 use sui::dynamic_field;
 use sui::event::events_by_type;
