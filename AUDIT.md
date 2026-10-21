@@ -140,8 +140,7 @@ cleared check were re-verified against the new code; none is weakened.
   `PartyAdminCapKey`), `creator`/`accepted_by` (tx sender), `created_epoch`
   (tx epoch), counts and before/after snapshots, always-true marker flags,
   `old_name`, and `since_epoch`.
-- **Signatures:** `share(self, cap)` and `accept_invite(member, member_cap,
-  group)` no longer take `ctx` (their only use was the dropped fields).
+- **Signatures:** `share` and `accept_invite` no longer take `ctx` (their only use was the dropped fields).
 - **`Membership { since_epoch }` removed;** the `MembershipKey` value is a
   `bool` marker like the pending keys. Key construction stays module-private,
   so F3 (unforgeability) holds unchanged.
