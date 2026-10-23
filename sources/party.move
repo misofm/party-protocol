@@ -67,16 +67,6 @@ public fun new(
     (party, cap)
 }
 
-public fun share(self: Party, cap: &PartyAdminCap) {
-    self.authorize(cap);
-    emit(PartyCreatedEvent {
-        party_id: object::id(&self),
-        admin_cap_id: object::id(cap),
-        name: self.name,
-    });
-    transfer::share_object(self);
-}
-
 // === View Functions ===
 
 public fun name(self: &Party): String {
@@ -87,7 +77,21 @@ public fun uid(self: &Party): &UID {
     &self.id
 }
 
+public fun authorize(self: &Party, cap: &PartyAdminCap) {
+    assert!(cap.party_id == object::id(self), EUnauthorized);
+}
+
 // === Admin Functions ===
+
+public fun share(self: Party, cap: &PartyAdminCap) {
+    self.authorize(cap);
+    emit(PartyCreatedEvent {
+        party_id: object::id(&self),
+        admin_cap_id: object::id(cap),
+        name: self.name,
+    });
+    transfer::share_object(self);
+}
 
 public fun set_name(self: &mut Party, cap: &PartyAdminCap, name: String) {
     self.authorize(cap);
@@ -101,12 +105,6 @@ public fun set_name(self: &mut Party, cap: &PartyAdminCap, name: String) {
 public fun uid_mut(self: &mut Party, cap: &PartyAdminCap): &mut UID {
     self.authorize(cap);
     &mut self.id
-}
-
-// === Authorization ===
-
-public fun authorize(self: &Party, cap: &PartyAdminCap) {
-    assert!(cap.party_id == object::id(self), EUnauthorized);
 }
 
 // === Test Functions ===
