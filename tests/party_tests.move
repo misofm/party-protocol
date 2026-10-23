@@ -6,255 +6,36 @@ module miso_party::party_tests;
 
 use std::unit_test::{assert_eq, destroy};
 use sui::event::events_by_type;
-use miso_party::party::{
-    Self,
-    Party,
-    PartyAdminCap,
-    PartyCreatedEvent,
-    PartyGroupInviteCreatedEvent,
-    PartyGroupInviteDeclinedEvent,
-    PartyGroupInviteRevokedEvent,
-    PartyGroupMembershipAcceptedEvent,
-    PartyGroupMembershipLeftEvent,
-    PartyGroupMembershipRemovedEvent,
-    PartyNameSetEvent,
-};
+use miso_party::party::{Self, PartyNameSetEvent, PartyCreatedEvent};
 use miso_party::test_helpers;
 
 const MAX_NAME_LENGTH: u64 = 200;
-const MAX_GROUP_MEMBERS: u64 = 200;
-
-fun join(
-    group: &mut Party,
-    group_cap: &PartyAdminCap,
-    member: &mut Party,
-    member_cap: &PartyAdminCap,
-) {
-    group.invite_party(group_cap, member);
-    member.accept_invite(member_cap, group);
-}
-
-// === Individual Party ===
 
 #[test]
-fun new_individual() {
+fun new_party() {
     let ctx = &mut tx_context::dummy();
-    let (party, cap) = test_helpers::individual(ctx);
+    let (party, cap) = test_helpers::party(ctx);
     assert_eq!(party.name(), b"Test Artist".to_string());
-    assert!(party.is_individual_kind());
-    assert!(!party.is_group_kind());
     assert_eq!(events_by_type<PartyCreatedEvent>().length(), 0);
     destroy(party);
     destroy(cap);
 }
 
 #[test]
-fun new_individual_with_max_name() {
+fun new_party_with_max_name() {
     let ctx = &mut tx_context::dummy();
     let name = test_helpers::long_string(MAX_NAME_LENGTH);
-    let (party, cap) = test_helpers::individual_named(name, ctx);
+    let (party, cap) = party::new(name, ctx);
     assert_eq!(party.name().length(), MAX_NAME_LENGTH);
     assert_eq!(events_by_type<PartyCreatedEvent>().length(), 0);
     destroy(party);
     destroy(cap);
 }
 
-// === Group Party ===
-
-#[test]
-fun new_group() {
-    let ctx = &mut tx_context::dummy();
-    let (party, cap) = test_helpers::group(ctx);
-    assert!(party.is_group_kind());
-    assert!(!party.is_individual_kind());
-    assert!(party.group_members().is_empty());
-    assert_eq!(events_by_type<PartyCreatedEvent>().length(), 0);
-    destroy(party);
-    destroy(cap);
-}
-
-// === Invite / Accept ===
-
-#[test]
-fun join_group() {
-    let ctx = &mut tx_context::dummy();
-    let (mut group, group_cap) = test_helpers::group(ctx);
-    let (mut individual, individual_cap) = test_helpers::individual(ctx);
-
-    let party_id = object::id(&individual);
-    join(&mut group, &group_cap, &mut individual, &individual_cap);
-
-    assert_eq!(group.group_members().length(), 1);
-    assert!(group.group_members().contains(&party_id));
-    assert!(party::is_member(&individual, object::id(&group)));
-    assert!(!group.has_pending_invite(party_id));
-    assert!(!party::has_pending_membership(&individual, object::id(&group)));
-    assert_eq!(events_by_type<PartyGroupInviteCreatedEvent>().length(), 1);
-    assert_eq!(events_by_type<PartyGroupMembershipAcceptedEvent>().length(), 1);
-
-    destroy(group);
-    destroy(group_cap);
-    destroy(individual);
-    destroy(individual_cap);
-}
-
-#[test]
-fun join_multiple() {
-    let ctx = &mut tx_context::dummy();
-    let (mut group, group_cap) = test_helpers::group(ctx);
-    let (mut ind1, cap1) = test_helpers::individual_named(b"Artist 1".to_string(), ctx);
-    let (mut ind2, cap2) = test_helpers::individual_named(b"Artist 2".to_string(), ctx);
-    let (mut ind3, cap3) = test_helpers::individual_named(b"Artist 3".to_string(), ctx);
-
-    join(&mut group, &group_cap, &mut ind1, &cap1);
-    join(&mut group, &group_cap, &mut ind2, &cap2);
-    join(&mut group, &group_cap, &mut ind3, &cap3);
-
-    assert_eq!(group.group_members().length(), 3);
-    assert_eq!(events_by_type<PartyGroupInviteCreatedEvent>().length(), 3);
-    assert_eq!(events_by_type<PartyGroupMembershipAcceptedEvent>().length(), 3);
-
-    destroy(group);
-    destroy(group_cap);
-    destroy(ind1);
-    destroy(cap1);
-    destroy(ind2);
-    destroy(cap2);
-    destroy(ind3);
-    destroy(cap3);
-}
-
-#[test]
-fun decline_invite() {
-    let ctx = &mut tx_context::dummy();
-    let (mut group, group_cap) = test_helpers::group(ctx);
-    let (mut member, member_cap) = test_helpers::individual(ctx);
-
-    group.invite_party(&group_cap, &mut member);
-    assert!(group.has_pending_invite(object::id(&member)));
-    assert!(party::has_pending_membership(&member, object::id(&group)));
-
-    member.decline_invite(&member_cap, &mut group);
-    assert!(!group.has_pending_invite(object::id(&member)));
-    assert!(!party::has_pending_membership(&member, object::id(&group)));
-    assert_eq!(group.group_members().length(), 0);
-    assert_eq!(events_by_type<PartyGroupInviteCreatedEvent>().length(), 1);
-    assert_eq!(events_by_type<PartyGroupInviteDeclinedEvent>().length(), 1);
-
-    group.invite_party(&group_cap, &mut member);
-    member.accept_invite(&member_cap, &mut group);
-    assert!(party::is_member(&member, object::id(&group)));
-    assert_eq!(events_by_type<PartyGroupInviteCreatedEvent>().length(), 2);
-    assert_eq!(events_by_type<PartyGroupMembershipAcceptedEvent>().length(), 1);
-
-    destroy(group);
-    destroy(group_cap);
-    destroy(member);
-    destroy(member_cap);
-}
-
-#[test]
-fun revoke_invite() {
-    let ctx = &mut tx_context::dummy();
-    let (mut group, group_cap) = test_helpers::group(ctx);
-    let (mut member, member_cap) = test_helpers::individual(ctx);
-
-    let member_id = object::id(&member);
-    group.invite_party(&group_cap, &mut member);
-    assert!(group.has_pending_invite(member_id));
-    assert!(party::has_pending_membership(&member, object::id(&group)));
-
-    group.revoke_invite(&group_cap, &mut member);
-    assert!(!group.has_pending_invite(member_id));
-    assert!(!party::has_pending_membership(&member, object::id(&group)));
-    assert_eq!(events_by_type<PartyGroupInviteCreatedEvent>().length(), 1);
-    assert_eq!(events_by_type<PartyGroupInviteRevokedEvent>().length(), 1);
-
-    group.invite_party(&group_cap, &mut member);
-    member.decline_invite(&member_cap, &mut group);
-    assert_eq!(events_by_type<PartyGroupInviteCreatedEvent>().length(), 2);
-    assert_eq!(events_by_type<PartyGroupInviteDeclinedEvent>().length(), 1);
-
-    destroy(group);
-    destroy(group_cap);
-    destroy(member);
-    destroy(member_cap);
-}
-
-#[test, expected_failure(abort_code = party::ENoPendingInvite)]
-fun accept_without_invite() {
-    let ctx = &mut tx_context::dummy();
-    let (mut group, group_cap) = test_helpers::group(ctx);
-    let (mut member, member_cap) = test_helpers::individual(ctx);
-
-    member.accept_invite(&member_cap, &mut group);
-
-    destroy(group);
-    destroy(group_cap);
-    destroy(member);
-    destroy(member_cap);
-}
-
-#[test, expected_failure(abort_code = party::EUnauthorized)]
-fun accept_with_wrong_cap() {
-    let ctx = &mut tx_context::dummy();
-    let (mut group, group_cap) = test_helpers::group(ctx);
-    let (mut member, member_cap) = test_helpers::individual(ctx);
-    let (other, other_cap) = test_helpers::individual(ctx);
-
-    group.invite_party(&group_cap, &mut member);
-    member.accept_invite(&other_cap, &mut group);
-
-    destroy(group);
-    destroy(group_cap);
-    destroy(member);
-    destroy(member_cap);
-    destroy(other);
-    destroy(other_cap);
-}
-
-#[test, expected_failure(abort_code = party::ENotGroupKind)]
-fun accept_on_individual() {
-    let ctx = &mut tx_context::dummy();
-    let (mut party, cap) = test_helpers::individual(ctx);
-    let (mut member, member_cap) = test_helpers::individual(ctx);
-
-    member.accept_invite(&member_cap, &mut party);
-
-    destroy(party);
-    destroy(cap);
-    destroy(member);
-    destroy(member_cap);
-}
-
-// === Remove / Evict ===
-
-#[test]
-fun remove_member() {
-    let ctx = &mut tx_context::dummy();
-    let (mut group, group_cap) = test_helpers::group(ctx);
-    let (mut individual, individual_cap) = test_helpers::individual(ctx);
-
-    join(&mut group, &group_cap, &mut individual, &individual_cap);
-    assert_eq!(group.group_members().length(), 1);
-
-    group.remove_member(&group_cap, &mut individual);
-    assert_eq!(group.group_members().length(), 0);
-    assert!(!party::is_member(&individual, object::id(&group)));
-    assert_eq!(events_by_type<PartyGroupMembershipRemovedEvent>().length(), 1);
-
-    destroy(group);
-    destroy(group_cap);
-    destroy(individual);
-    destroy(individual_cap);
-}
-
-// === Set Name ===
-
 #[test]
 fun set_name() {
     let ctx = &mut tx_context::dummy();
-    let (mut party, cap) = test_helpers::individual(ctx);
+    let (mut party, cap) = test_helpers::party(ctx);
     party.set_name(&cap, b"New Name".to_string());
     party.set_name(&cap, b"New Name".to_string());
     party.set_name(&cap, b"Final Name".to_string());
@@ -267,7 +48,7 @@ fun set_name() {
 #[test]
 fun equal_name_write_preserves_state_without_event() {
     let ctx = &mut tx_context::dummy();
-    let (mut party, cap) = test_helpers::individual(ctx);
+    let (mut party, cap) = test_helpers::party(ctx);
     party.set_name(&cap, b"Test Artist".to_string());
     assert_eq!(party.name(), b"Test Artist".to_string());
     assert_eq!(events_by_type<PartyNameSetEvent>().length(), 0);
@@ -278,7 +59,7 @@ fun equal_name_write_preserves_state_without_event() {
 #[test]
 fun set_name_at_max_length() {
     let ctx = &mut tx_context::dummy();
-    let (mut party, cap) = test_helpers::individual(ctx);
+    let (mut party, cap) = test_helpers::party(ctx);
     let name = test_helpers::long_string(MAX_NAME_LENGTH);
     party.set_name(&cap, name);
     assert_eq!(party.name().length(), MAX_NAME_LENGTH);
@@ -287,53 +68,10 @@ fun set_name_at_max_length() {
     destroy(cap);
 }
 
-// === Boundary Tests ===
-
-#[test, expected_failure(abort_code = party::EMaxGroupMembersExceeded)]
-fun invite_exceeds_max_group_members() {
-    let ctx = &mut tx_context::dummy();
-    let (mut group, group_cap) = party::new_group_with_n_members_for_testing(
-        MAX_GROUP_MEMBERS,
-        ctx,
-    );
-
-    let (mut individual, individual_cap) = test_helpers::individual(ctx);
-    group.invite_party(&group_cap, &mut individual);
-
-    destroy(individual);
-    destroy(individual_cap);
-    destroy(group);
-    destroy(group_cap);
-}
-
-#[test, expected_failure(abort_code = party::EMaxGroupMembersExceeded)]
-fun accept_exceeds_max_group_members() {
-    let ctx = &mut tx_context::dummy();
-    let (mut group, group_cap) = party::new_group_with_n_members_for_testing(
-        MAX_GROUP_MEMBERS - 1,
-        ctx,
-    );
-    let (mut first, first_cap) = test_helpers::individual(ctx);
-    let (mut second, second_cap) = test_helpers::individual(ctx);
-    group.invite_party(&group_cap, &mut first);
-    group.invite_party(&group_cap, &mut second);
-    first.accept_invite(&first_cap, &mut group);
-    second.accept_invite(&second_cap, &mut group);
-
-    destroy(group);
-    destroy(group_cap);
-    destroy(first);
-    destroy(first_cap);
-    destroy(second);
-    destroy(second_cap);
-}
-
-// === Error Conditions ===
-
 #[test, expected_failure(abort_code = party::EEmptyString)]
 fun new_empty_name() {
     let ctx = &mut tx_context::dummy();
-    let (party, cap) = party::new(party::new_individual_kind(), b"".to_string(), ctx);
+    let (party, cap) = party::new( b"".to_string(), ctx);
     destroy(party);
     destroy(cap);
 }
@@ -342,7 +80,6 @@ fun new_empty_name() {
 fun new_name_too_long() {
     let ctx = &mut tx_context::dummy();
     let (party, cap) = party::new(
-        party::new_individual_kind(),
         test_helpers::long_string(MAX_NAME_LENGTH + 1),
         ctx,
     );
@@ -353,7 +90,7 @@ fun new_name_too_long() {
 #[test, expected_failure(abort_code = party::EEmptyString)]
 fun set_name_empty() {
     let ctx = &mut tx_context::dummy();
-    let (mut party, cap) = test_helpers::individual(ctx);
+    let (mut party, cap) = test_helpers::party(ctx);
     party.set_name(&cap, b"".to_string());
     destroy(party);
     destroy(cap);
@@ -362,75 +99,17 @@ fun set_name_empty() {
 #[test, expected_failure(abort_code = party::EMaxNameLengthExceeded)]
 fun set_name_too_long() {
     let ctx = &mut tx_context::dummy();
-    let (mut party, cap) = test_helpers::individual(ctx);
+    let (mut party, cap) = test_helpers::party(ctx);
     party.set_name(&cap, test_helpers::long_string(MAX_NAME_LENGTH + 1));
     destroy(party);
     destroy(cap);
 }
 
-#[test, expected_failure(abort_code = party::EDuplicateParty)]
-fun invite_already_member() {
-    let ctx = &mut tx_context::dummy();
-    let (mut group, group_cap) = test_helpers::group(ctx);
-    let (mut individual, individual_cap) = test_helpers::individual(ctx);
-
-    join(&mut group, &group_cap, &mut individual, &individual_cap);
-    group.invite_party(&group_cap, &mut individual);
-
-    destroy(group);
-    destroy(group_cap);
-    destroy(individual);
-    destroy(individual_cap);
-}
-
-#[test, expected_failure(abort_code = party::EAlreadyInvited)]
-fun invite_duplicate_pending() {
-    let ctx = &mut tx_context::dummy();
-    let (mut group, group_cap) = test_helpers::group(ctx);
-    let (mut individual, individual_cap) = test_helpers::individual(ctx);
-
-    group.invite_party(&group_cap, &mut individual);
-    group.invite_party(&group_cap, &mut individual);
-
-    destroy(group);
-    destroy(group_cap);
-    destroy(individual);
-    destroy(individual_cap);
-}
-
-#[test, expected_failure(abort_code = party::ENotGroupKind)]
-fun invite_on_individual() {
-    let ctx = &mut tx_context::dummy();
-    let (mut party1, cap1) = test_helpers::individual(ctx);
-    let (mut party2, cap2) = test_helpers::individual(ctx);
-
-    party1.invite_party(&cap1, &mut party2);
-
-    destroy(party1);
-    destroy(cap1);
-    destroy(party2);
-    destroy(cap2);
-}
-
-#[test, expected_failure(abort_code = party::ENotIndividualKind)]
-fun invite_group_as_member() {
-    let ctx = &mut tx_context::dummy();
-    let (mut group1, cap1) = test_helpers::group(ctx);
-    let (mut group2, cap2) = test_helpers::group(ctx);
-
-    group1.invite_party(&cap1, &mut group2);
-
-    destroy(group1);
-    destroy(cap1);
-    destroy(group2);
-    destroy(cap2);
-}
-
 #[test, expected_failure(abort_code = party::EUnauthorized)]
 fun unauthorized_cap() {
     let ctx = &mut tx_context::dummy();
-    let (mut party1, cap1) = test_helpers::individual(ctx);
-    let (party2, cap2) = test_helpers::individual(ctx);
+    let (mut party1, cap1) = test_helpers::party(ctx);
+    let (party2, cap2) = test_helpers::party(ctx);
 
     party1.set_name(&cap2, b"Hacked".to_string());
 
@@ -443,8 +122,8 @@ fun unauthorized_cap() {
 #[test, expected_failure(abort_code = party::EUnauthorized)]
 fun unauthorized_equal_name_write() {
     let ctx = &mut tx_context::dummy();
-    let (mut party1, cap1) = test_helpers::individual(ctx);
-    let (party2, cap2) = test_helpers::individual(ctx);
+    let (mut party1, cap1) = test_helpers::party(ctx);
+    let (party2, cap2) = test_helpers::party(ctx);
 
     party1.set_name(&cap2, b"Test Artist".to_string());
 
@@ -454,92 +133,37 @@ fun unauthorized_equal_name_write() {
     destroy(cap2);
 }
 
-#[test, expected_failure(abort_code = party::ENotGroupKind)]
-fun remove_member_on_individual() {
-    let ctx = &mut tx_context::dummy();
-    let (mut party, cap) = test_helpers::individual(ctx);
-    let (mut member, member_cap) = test_helpers::individual(ctx);
-
-    party.remove_member(&cap, &mut member);
-
-    destroy(party);
-    destroy(cap);
-    destroy(member);
-    destroy(member_cap);
-}
-
-#[test, expected_failure(abort_code = party::ENotGroupKind)]
-fun group_members_on_individual() {
-    let ctx = &mut tx_context::dummy();
-    let (party, cap) = test_helpers::individual(ctx);
-
-    party.group_members();
-
-    destroy(party);
-    destroy(cap);
-}
-
-// === Leave Group ===
-
 #[test]
-fun leave_group() {
+fun authorize_reads_without_mutating_party() {
     let ctx = &mut tx_context::dummy();
-    let (mut group, group_cap) = test_helpers::group(ctx);
-    let (mut member, member_cap) = test_helpers::individual(ctx);
-
-    join(&mut group, &group_cap, &mut member, &member_cap);
-    assert_eq!(group.group_members().length(), 1);
-
-    member.leave(&member_cap, &mut group);
-    assert_eq!(group.group_members().length(), 0);
-    assert!(!party::is_member(&member, object::id(&group)));
-    assert_eq!(events_by_type<PartyGroupMembershipLeftEvent>().length(), 1);
-    assert_eq!(events_by_type<PartyGroupMembershipRemovedEvent>().length(), 0);
-
-    destroy(group);
-    destroy(group_cap);
-    destroy(member);
-    destroy(member_cap);
+    let (party, cap) = test_helpers::party(ctx);
+    party.authorize(&cap);
+    assert_eq!(party.name(), b"Test Artist".to_string());
+    assert_eq!(events_by_type<PartyCreatedEvent>().length(), 0);
+    destroy(party);
+    destroy(cap);
 }
 
-#[test, expected_failure(abort_code = party::ENotGroupMember)]
-fun leave_not_a_member() {
+#[test, expected_failure(abort_code = party::EUnauthorized)]
+fun authorize_rejects_another_partys_cap() {
     let ctx = &mut tx_context::dummy();
-    let (mut group, group_cap) = test_helpers::group(ctx);
-    let (mut outsider, outsider_cap) = test_helpers::individual(ctx);
-
-    outsider.leave(&outsider_cap, &mut group);
-
-    destroy(group);
-    destroy(group_cap);
-    destroy(outsider);
-    destroy(outsider_cap);
+    let (party, cap) = test_helpers::party(ctx);
+    let (other, other_cap) = test_helpers::party(ctx);
+    party.authorize(&other_cap);
+    destroy(party);
+    destroy(cap);
+    destroy(other);
+    destroy(other_cap);
 }
 
-#[test, expected_failure(abort_code = party::ENotGroupKind)]
-fun leave_on_individual() {
+#[test, expected_failure(abort_code = party::EUnauthorized)]
+fun uid_mut_rejects_another_partys_cap() {
     let ctx = &mut tx_context::dummy();
-    let (mut individual, individual_cap) = test_helpers::individual(ctx);
-    let (mut member, member_cap) = test_helpers::individual(ctx);
-
-    member.leave(&member_cap, &mut individual);
-
-    destroy(individual);
-    destroy(individual_cap);
-    destroy(member);
-    destroy(member_cap);
-}
-
-#[test, expected_failure(abort_code = party::ENotGroupMember)]
-fun remove_member_not_a_member() {
-    let ctx = &mut tx_context::dummy();
-    let (mut group, group_cap) = test_helpers::group(ctx);
-    let (mut outsider, outsider_cap) = test_helpers::individual(ctx);
-
-    group.remove_member(&group_cap, &mut outsider);
-
-    destroy(group);
-    destroy(group_cap);
-    destroy(outsider);
-    destroy(outsider_cap);
+    let (mut party, cap) = test_helpers::party(ctx);
+    let (other, other_cap) = test_helpers::party(ctx);
+    let _ = party.uid_mut(&other_cap);
+    destroy(party);
+    destroy(cap);
+    destroy(other);
+    destroy(other_cap);
 }

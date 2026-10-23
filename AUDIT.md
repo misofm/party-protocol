@@ -1,3 +1,9 @@
+> Historical audit record: the group-extension refactor removes PartyKind,
+> group state, and membership operations from core and adds public read-only
+> capability authorization. The audit below predates that refactor and must not
+> be treated as an audit of this source generation. See README.md for the new
+> boundary and migration notes.
+
 # Security Audit — `miso_party`
 
 Audited at `7e2f64f604e21e2662d6b4aaaa0446de27bfd58f` (2026-10-21). Scope: package `miso_party`, module `party` (`sources/party.move`, 313 lines); framework pinned at `719fb2960ccfbf9f4d33041f8ea5146d30671696` (`Move.lock`), no other dependencies.
