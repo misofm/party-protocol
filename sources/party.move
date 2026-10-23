@@ -77,10 +77,6 @@ public fun uid(self: &Party): &UID {
     &self.id
 }
 
-public fun authorize(self: &Party, cap: &PartyAdminCap) {
-    assert!(cap.party_id == object::id(self), EUnauthorized);
-}
-
 // === Admin Functions ===
 
 public fun share(self: Party, cap: &PartyAdminCap) {
@@ -100,6 +96,10 @@ public fun set_name(self: &mut Party, cap: &PartyAdminCap, name: String) {
     if (self.name == name) return;
     self.name = name;
     emit(PartyNameSetEvent { party_id: object::id(self), name });
+}
+
+public fun authorize(self: &Party, cap: &PartyAdminCap) {
+    assert!(cap.party_id == object::id(self), EUnauthorized);
 }
 
 public fun uid_mut(self: &mut Party, cap: &PartyAdminCap): &mut UID {
