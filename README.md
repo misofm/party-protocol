@@ -1,99 +1,86 @@
-# miso_party
+# Miso Party Protocol
 
-[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Move](https://img.shields.io/badge/Move-2024-black.svg)](https://docs.sui.io/concepts/sui-move-concepts)
+A permissionless identity primitive on Sui, licensed under Apache 2.0.
 
-> On-chain party identity for [Sui](https://sui.io).
+`miso_party` gives people, bands, labels, and other entities a stable `Party`
+identity. Core contains its ID and name, a matching administrative capability,
+and the surface needed for optional extensions. It imposes no individual/group
+classification or membership representation.
 
-`miso_party` provides a reusable identity primitive for protocols that need to
-represent people, groups, and organizations:
-
-- **`Party`** — a named, capability-authorized identity that can represent an **individual** or a **group** of parties. Parties are extensible (other packages can attach data via dynamic fields) and own their lifecycle through a `PartyAdminCap`.
-
-## Concepts
-
-### Party
+## Identity and Administration
 
 ```move
-let (party, cap) = party::new(party::new_individual_kind(), b"Ada".to_string(), ctx);
-party.share(&cap); // make it a shared object
+public struct Party has key {
+    id: UID,
+    name: String,
+}
 ```
 
-- Creation and sharing complete in one transaction. `new()` is silent; `share()` emits one `PartyCreatedEvent` from the final pre-share state.
-- Individual or group (`new_individual_kind()` / `new_group_kind()`); groups hold member party IDs.
-- All mutations, including naming and consent-based group membership, require the appropriate `PartyAdminCap`. Setting the name to its current value is a silent no-op.
-- Extensible: holders of the cap can reach the party's `&mut UID` (`uid_mut`) to attach domain data.
-- Pending invites and memberships are dynamic fields on both parties under module-private keys, so no extension holding `uid_mut` can forge or scrub them. The member side holds an inbox of invites from groups and its memberships.
-- `is_member(group_id)` reads the member side only and is the member-gated authorization primitive for extensions.
-- `leave` is the member's unconditional exit; `remove_member` scrubs only the member's record for that group.
-- `Party` is `key`-only, so `new()` output must be shared in the same transaction. `Party.name` is unverified; verification is an application concern.
+`party::new(name, ctx)` returns the Party and its `PartyAdminCap`. A Party is
+key-only and must be shared with `party.share(&cap)` in the creating transaction.
+Sharing emits `PartyCreatedEvent` with the final name and both object IDs.
 
-### Events
+Names are nonempty and at most 200 bytes. The administrator can change the name
+without changing the identity. Names are unverified claims; applications choose
+which identities they trust.
 
-An indexer can build and maintain a party's name, kind, member set and pending
-invites from these events and the transaction envelope alone, with no object
-reads:
+All administration checks the capability's stored `party_id` against the Party.
+`party.authorize(&cap)` exposes that check with immutable references, allowing
+extensions to authorize their own state without mutating the Party.
+`party.uid_mut(&cap)` provides mutable UID access for attaching typed fields.
+The capability is a transferable bearer object; possessing it grants authority.
 
-| Event | Fields | Max size |
-|---|---|---|
-| `PartyCreatedEvent` | `party_id: ID`, `admin_cap_id: ID`, `name: String`, `is_group: bool` | 267 B |
-| `PartyNameSetEvent` | `party_id: ID`, `name: String` | 234 B |
-| `PartyGroupInviteCreatedEvent`, `…InviteDeclinedEvent`, `…InviteRevokedEvent` | `group_id: ID`, `member_id: ID` | 64 B |
-| `PartyGroupMembershipAcceptedEvent`, `…MembershipLeftEvent`, `…MembershipRemovedEvent` | `group_id: ID`, `member_id: ID` | 64 B |
+## Optional Features
 
-Names are at most 200 bytes. Each membership event is a delta applied in order:
-an invite adds a pending invite; accepting removes it and adds the member;
-declining or revoking removes it; leaving or removal drops the member. A group
-is created empty, and members that join before `share()` appear as
-`PartyGroupMembershipAcceptedEvent`s in the same transaction. Setting the
-current name emits nothing.
+Data-model extensions live in
+[party-protocol-extensions](https://github.com/misofm/party-protocol-extensions).
+Group membership belongs to the optional `party_group` extension: its storage,
+limits, invitations, consent rules, and membership events are outside core.
+A Party remains usable without that extension or with another membership model.
 
-`PartyCreatedEvent` carries the admin cap's ID, which is also
-`sui::derived_object::derive_address(party_id, PartyAdminCapKey(party_id))`.
-Sender and time come from the transaction.
+## Events
 
-### Errors
+| Event | Fields |
+| --- | --- |
+| `PartyCreatedEvent` | `party_id: ID`, `admin_cap_id: ID`, `name: String` |
+| `PartyNameSetEvent` | `party_id: ID`, `name: String` |
+
+Creation before sharing is silent. Setting the current name is an authorized,
+validated no-op and emits no event. Sender and time come from the transaction.
+
+## Errors
 
 | Code | Constant | Meaning |
-|---|---|---|
-| 0 | `EUnauthorized` | The admin cap does not match the party |
-| 1 | `ENotIndividualKind` | Operation requires an individual party |
-| 2 | `ENotGroupKind` | Operation requires a group party |
-| 3 | `EMaxGroupMembersExceeded` | Group already has 200 members |
-| 4 | `EMaxNameLengthExceeded` | Name is longer than 200 bytes |
+| --- | --- | --- |
+| 0 | `EUnauthorized` | The capability does not match the Party |
+| 4 | `EMaxNameLengthExceeded` | Name exceeds 200 bytes |
 | 5 | `EEmptyString` | Name is empty |
-| 6 | `EDuplicateParty` | Party is already a member |
-| 7 | `EAlreadyInvited` | Party already has a pending invite to the group |
-| 8 | `ENotGroupMember` | Party is not a member of the group |
-| 9 | `ENoPendingInvite` | No pending invite for the party in the group |
 
-## Install
+The existing name-validation error codes are retained.
 
-```toml
-[dependencies]
-miso_party = { git = "https://github.com/misofm/party-protocol.git", rev = "<commit-sha>" }
-```
+## Source Generation and Migration
 
-Pin `rev` to the exact commit reviewed by your application. Party profile and
-presentation slices live in
-[misofm/party-protocol-extensions](https://github.com/misofm/party-protocol-extensions).
+This is a breaking source generation. It removes `PartyKind`, the `kind` field,
+kind constructors and views, and all core group and invitation APIs. `new` no
+longer takes a kind. `PartyCreatedEvent` no longer contains `is_group`.
 
-## TypeScript SDK
+Consumers targeting this generation must update constructor calls, generated
+bindings, event decoding, and dependency pins. Group consumers use `party_group`
+from a compatible extension generation. Existing immutable deployments and
+pinned historical packages retain their previous layouts and behavior; no
+on-chain migration or publication is performed by this source refactor.
+`Published.toml` remains the record of the historical deployed generation.
 
-Party bindings, reads, and composable transaction builders are included in
-[`@misofm/protocol`](https://github.com/misofm/sdks) and are exposed through
-`client.miso.party`.
-
-## Build & test
+## Build and Test
 
 ```sh
-sui move build
-sui move test
+sui move build --lint --warnings-are-errors
+sui move test --coverage
 ```
 
-## Contributing
-
-Issues and pull requests are welcome. By contributing you agree that your contributions are licensed under the project's Apache 2.0 license.
+The tests cover creation, publication events, shared-object reads, name changes,
+capability confusion, and extension UID access. `AUDIT.md` records historical
+reviews and is not an audit of this new generation.
 
 ## License
 
