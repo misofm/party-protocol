@@ -24,10 +24,10 @@ fun share_emits_final_identity_and_capability() {
     party.share(&cap);
     let mut events = events_by_type<PartyCreatedEvent>();
     assert_eq!(events.length(), 1);
-    let (event_party_id, event_admin_cap_id, event_name) =
-        party::party_created_event_fields(events.pop_back());
+    let (event_party_id, event_party_admin_cap_id, event_name) =
+        party::party_created_event_fields(&events.pop_back());
     assert_eq!(event_party_id, party_id);
-    assert_eq!(event_admin_cap_id, object::id(&cap));
+    assert_eq!(event_party_admin_cap_id, object::id(&cap));
     assert_eq!(event_name, b"Final Name".to_string());
 
     scenario.next_tx(READER);

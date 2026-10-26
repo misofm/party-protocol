@@ -42,7 +42,7 @@ A Party remains usable without that extension or with another membership model.
 
 | Event | Fields |
 | --- | --- |
-| `PartyCreatedEvent` | `party_id: ID`, `admin_cap_id: ID`, `name: String` |
+| `PartyCreatedEvent` | `party_id: ID`, `party_admin_cap_id: ID`, `name: String` |
 | `PartyNameSetEvent` | `party_id: ID`, `name: String` |
 
 Creation before sharing is silent. Setting the current name is an authorized,

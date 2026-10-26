@@ -37,7 +37,7 @@ public struct PartyAdminCapKey(ID) has copy, drop, store;
 
 public struct PartyCreatedEvent has copy, drop {
     party_id: ID,
-    admin_cap_id: ID,
+    party_admin_cap_id: ID,
     name: String,
 }
 
@@ -83,7 +83,7 @@ public fun share(self: Party, cap: &PartyAdminCap) {
     self.authorize(cap);
     emit(PartyCreatedEvent {
         party_id: object::id(&self),
-        admin_cap_id: object::id(cap),
+        party_admin_cap_id: object::id(cap),
         name: self.name,
     });
     transfer::share_object(self);
@@ -110,7 +110,7 @@ public fun uid_mut(self: &mut Party, cap: &PartyAdminCap): &mut UID {
 // === Test Functions ===
 
 #[test_only]
-public fun party_created_event_fields(event: PartyCreatedEvent): (ID, ID, String) {
-    let PartyCreatedEvent { party_id, admin_cap_id, name } = event;
-    (party_id, admin_cap_id, name)
+public fun party_created_event_fields(event: &PartyCreatedEvent): (ID, ID, String) {
+    let PartyCreatedEvent { party_id, party_admin_cap_id, name } = event;
+    (*party_id, *party_admin_cap_id, *name)
 }
