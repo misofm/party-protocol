@@ -31,7 +31,7 @@ public struct PartyAdminCap has key, store {
     party_id: ID,
 }
 
-public struct PartyAdminCapKey(ID) has copy, drop, store;
+public struct PartyAdminCapKey() has copy, drop, store;
 
 // === Events ===
 
@@ -61,7 +61,7 @@ public fun new(
     };
     let party_id = object::id(&party);
     let cap = PartyAdminCap {
-        id: claim(&mut party.id, PartyAdminCapKey(party_id)),
+        id: claim(&mut party.id, PartyAdminCapKey()),
         party_id,
     };
     (party, cap)
