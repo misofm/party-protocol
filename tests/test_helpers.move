@@ -4,8 +4,8 @@
 #[test_only]
 module miso_party::test_helpers;
 
-use std::string::String;
 use miso_party::party::{Self, Party, PartyAdminCap};
+use std::string::String;
 
 public fun party(ctx: &mut TxContext): (Party, PartyAdminCap) {
     party::new(b"Test Artist".to_string(), ctx)

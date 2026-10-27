@@ -79,8 +79,8 @@ sui move test --coverage
 ```
 
 The tests cover creation, publication events, shared-object reads, name changes,
-capability confusion, and extension UID access. `AUDIT.md` records historical
-reviews and is not an audit of this new generation.
+capability confusion, and extension UID access. Historical security reviews are
+archived separately and do not cover this new generation.
 
 ## License
 

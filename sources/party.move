@@ -3,11 +3,8 @@
 
 module miso_party::party;
 
-// === Imports ===
-
 use std::string::String;
-use sui::derived_object::claim;
-use sui::event::emit;
+use sui::{derived_object::claim, event::emit};
 
 // === Errors ===
 
@@ -48,10 +45,7 @@ public struct PartyNameSetEvent has copy, drop {
 
 // === Public Functions ===
 
-public fun new(
-    name: String,
-    ctx: &mut TxContext,
-): (Party, PartyAdminCap) {
+public fun new(name: String, ctx: &mut TxContext): (Party, PartyAdminCap) {
     assert!(!name.is_empty(), EEmptyString);
     assert!(name.length() <= MAX_NAME_LENGTH, EMaxNameLengthExceeded);
 

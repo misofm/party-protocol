@@ -4,12 +4,9 @@
 #[test_only]
 module miso_party::party_lifecycle_tests;
 
+use miso_party::{party::{Self, Party, PartyCreatedEvent, PartyNameSetEvent}, test_helpers};
 use std::unit_test::{assert_eq, destroy};
-use sui::dynamic_field;
-use sui::event::events_by_type;
-use sui::test_scenario;
-use miso_party::party::{Self, Party, PartyCreatedEvent, PartyNameSetEvent};
-use miso_party::test_helpers;
+use sui::{dynamic_field, event::events_by_type, test_scenario};
 
 const OWNER: address = @0xA1;
 const READER: address = @0xB2;
@@ -24,8 +21,9 @@ fun share_emits_final_identity_and_capability() {
     party.share(&cap);
     let mut events = events_by_type<PartyCreatedEvent>();
     assert_eq!(events.length(), 1);
-    let (event_party_id, event_party_admin_cap_id, event_name) =
-        party::party_created_event_fields(&events.pop_back());
+    let (event_party_id, event_party_admin_cap_id, event_name) = party::party_created_event_fields(
+        &events.pop_back(),
+    );
     assert_eq!(event_party_id, party_id);
     assert_eq!(event_party_admin_cap_id, object::id(&cap));
     assert_eq!(event_name, b"Final Name".to_string());

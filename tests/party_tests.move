@@ -4,10 +4,9 @@
 #[test_only]
 module miso_party::party_tests;
 
+use miso_party::{party::{Self, PartyNameSetEvent, PartyCreatedEvent}, test_helpers};
 use std::unit_test::{assert_eq, destroy};
 use sui::event::events_by_type;
-use miso_party::party::{Self, PartyNameSetEvent, PartyCreatedEvent};
-use miso_party::test_helpers;
 
 const MAX_NAME_LENGTH: u64 = 200;
 
@@ -71,7 +70,7 @@ fun set_name_at_max_length() {
 #[test, expected_failure(abort_code = party::EEmptyString)]
 fun new_empty_name() {
     let ctx = &mut tx_context::dummy();
-    let (party, cap) = party::new( b"".to_string(), ctx);
+    let (party, cap) = party::new(b"".to_string(), ctx);
     destroy(party);
     destroy(cap);
 }
