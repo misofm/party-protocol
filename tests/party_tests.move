@@ -8,7 +8,7 @@ use miso_party::{party::{Self, PartyNameSetEvent, PartyCreatedEvent}, test_helpe
 use std::unit_test::{assert_eq, destroy};
 use sui::event::events_by_type;
 
-const MAX_NAME_LENGTH: u64 = 200;
+const LONG_NAME_LENGTH: u64 = 1000;
 
 #[test]
 fun new_party() {
@@ -21,11 +21,11 @@ fun new_party() {
 }
 
 #[test]
-fun new_party_with_max_name() {
+fun new_party_with_long_name() {
     let ctx = &mut tx_context::dummy();
-    let name = test_helpers::long_string(MAX_NAME_LENGTH);
+    let name = test_helpers::long_string(LONG_NAME_LENGTH);
     let (party, cap) = party::new(name, ctx);
-    assert_eq!(party.name().length(), MAX_NAME_LENGTH);
+    assert_eq!(party.name().length(), LONG_NAME_LENGTH);
     assert_eq!(events_by_type<PartyCreatedEvent>().length(), 0);
     destroy(party);
     destroy(cap);
@@ -56,12 +56,12 @@ fun equal_name_write_preserves_state_without_event() {
 }
 
 #[test]
-fun set_name_at_max_length() {
+fun set_name_long() {
     let ctx = &mut tx_context::dummy();
     let (mut party, cap) = test_helpers::party(ctx);
-    let name = test_helpers::long_string(MAX_NAME_LENGTH);
+    let name = test_helpers::long_string(LONG_NAME_LENGTH);
     party.set_name(&cap, name);
-    assert_eq!(party.name().length(), MAX_NAME_LENGTH);
+    assert_eq!(party.name().length(), LONG_NAME_LENGTH);
     assert_eq!(events_by_type<PartyNameSetEvent>().length(), 1);
     destroy(party);
     destroy(cap);
@@ -75,31 +75,11 @@ fun new_empty_name() {
     destroy(cap);
 }
 
-#[test, expected_failure(abort_code = party::EMaxNameLengthExceeded)]
-fun new_name_too_long() {
-    let ctx = &mut tx_context::dummy();
-    let (party, cap) = party::new(
-        test_helpers::long_string(MAX_NAME_LENGTH + 1),
-        ctx,
-    );
-    destroy(party);
-    destroy(cap);
-}
-
 #[test, expected_failure(abort_code = party::EEmptyString)]
 fun set_name_empty() {
     let ctx = &mut tx_context::dummy();
     let (mut party, cap) = test_helpers::party(ctx);
     party.set_name(&cap, b"".to_string());
-    destroy(party);
-    destroy(cap);
-}
-
-#[test, expected_failure(abort_code = party::EMaxNameLengthExceeded)]
-fun set_name_too_long() {
-    let ctx = &mut tx_context::dummy();
-    let (mut party, cap) = test_helpers::party(ctx);
-    party.set_name(&cap, test_helpers::long_string(MAX_NAME_LENGTH + 1));
     destroy(party);
     destroy(cap);
 }

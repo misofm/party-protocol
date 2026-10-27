@@ -20,7 +20,7 @@ public struct Party has key {
 key-only and must be shared with `party.share(&cap)` in the creating transaction.
 Sharing emits `PartyCreatedEvent` with the final name and both object IDs.
 
-Names are nonempty and at most 200 bytes. The administrator can change the name
+Names must be nonempty; length is not capped on-chain. The administrator can change the name
 without changing the identity. Names are unverified claims; applications choose
 which identities they trust.
 
@@ -53,7 +53,6 @@ validated no-op and emits no event. Sender and time come from the transaction.
 | Code | Constant | Meaning |
 | --- | --- | --- |
 | 0 | `EUnauthorized` | The capability does not match the Party |
-| 4 | `EMaxNameLengthExceeded` | Name exceeds 200 bytes |
 | 5 | `EEmptyString` | Name is empty |
 
 The existing name-validation error codes are retained.

@@ -9,12 +9,7 @@ use sui::{derived_object::claim, event::emit};
 // === Errors ===
 
 const EUnauthorized: u64 = 0;
-const EMaxNameLengthExceeded: u64 = 4;
 const EEmptyString: u64 = 5;
-
-// === Constants ===
-
-const MAX_NAME_LENGTH: u64 = 200;
 
 // === Structs ===
 
@@ -47,7 +42,6 @@ public struct PartyNameSetEvent has copy, drop {
 
 public fun new(name: String, ctx: &mut TxContext): (Party, PartyAdminCap) {
     assert!(!name.is_empty(), EEmptyString);
-    assert!(name.length() <= MAX_NAME_LENGTH, EMaxNameLengthExceeded);
 
     let mut party = Party {
         id: object::new(ctx),
@@ -86,7 +80,6 @@ public fun share(self: Party, cap: &PartyAdminCap) {
 public fun set_name(self: &mut Party, cap: &PartyAdminCap, name: String) {
     self.authorize(cap);
     assert!(!name.is_empty(), EEmptyString);
-    assert!(name.length() <= MAX_NAME_LENGTH, EMaxNameLengthExceeded);
     if (self.name == name) return;
     self.name = name;
     emit(PartyNameSetEvent { party_id: object::id(self), name });
