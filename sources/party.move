@@ -42,7 +42,6 @@ public struct PartyNameSetEvent has copy, drop {
 
 public fun new(name: String, ctx: &mut TxContext): (Party, PartyAdminCap) {
     assert!(!name.is_empty(), EEmptyString);
-
     let mut party = Party {
         id: object::new(ctx),
         name,
