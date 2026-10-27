@@ -27,7 +27,6 @@ fun share_emits_final_identity_and_capability() {
     assert_eq!(event_party_id, party_id);
     assert_eq!(event_party_admin_cap_id, object::id(&cap));
     assert_eq!(event_name, b"Final Name".to_string());
-
     scenario.next_tx(READER);
     let party = scenario.take_shared<Party>();
     assert_eq!(party.name(), b"Final Name".to_string());
@@ -43,14 +42,12 @@ fun set_name_works_on_shared_party() {
     let (p, cap) = test_helpers::party(scenario.ctx());
     p.share(&cap);
     assert_eq!(events_by_type<PartyCreatedEvent>().length(), 1);
-
     scenario.next_tx(OWNER);
     let mut p = scenario.take_shared<Party>();
     p.set_name(&cap, b"New Stage Name".to_string());
     assert_eq!(p.name(), b"New Stage Name".to_string());
     assert_eq!(events_by_type<PartyNameSetEvent>().length(), 1);
     test_scenario::return_shared(p);
-
     destroy(cap);
     scenario.end();
 }
@@ -60,7 +57,6 @@ fun uid_mut_attaches_dynamic_fields_on_shared_party() {
     let mut scenario = test_scenario::begin(OWNER);
     let (p, cap) = test_helpers::party(scenario.ctx());
     p.share(&cap);
-
     scenario.next_tx(OWNER);
     let mut p = scenario.take_shared<Party>();
     dynamic_field::add(p.uid_mut(&cap), b"profile", 42u64);
@@ -69,7 +65,6 @@ fun uid_mut_attaches_dynamic_fields_on_shared_party() {
     assert_eq!(events_by_type<PartyCreatedEvent>().length(), 0);
     assert_eq!(events_by_type<PartyNameSetEvent>().length(), 0);
     test_scenario::return_shared(p);
-
     destroy(cap);
     scenario.end();
 }
@@ -79,7 +74,6 @@ fun share_rejects_wrong_cap() {
     let ctx = &mut tx_context::dummy();
     let (party, cap) = test_helpers::party(ctx);
     let (other, other_cap) = test_helpers::party(ctx);
-
     destroy(cap);
     destroy(other);
     party.share(&other_cap);

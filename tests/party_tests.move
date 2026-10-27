@@ -89,9 +89,7 @@ fun unauthorized_cap() {
     let ctx = &mut tx_context::dummy();
     let (mut party1, cap1) = test_helpers::party(ctx);
     let (party2, cap2) = test_helpers::party(ctx);
-
     party1.set_name(&cap2, b"Hacked".to_string());
-
     destroy(party1);
     destroy(cap1);
     destroy(party2);
@@ -103,9 +101,7 @@ fun unauthorized_equal_name_write() {
     let ctx = &mut tx_context::dummy();
     let (mut party1, cap1) = test_helpers::party(ctx);
     let (party2, cap2) = test_helpers::party(ctx);
-
     party1.set_name(&cap2, b"Test Artist".to_string());
-
     destroy(party1);
     destroy(cap1);
     destroy(party2);
