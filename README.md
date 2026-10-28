@@ -3,7 +3,7 @@
 A permissionless identity primitive on Sui, licensed under Apache 2.0.
 
 `miso_party` gives people, bands, labels, and other entities a stable `Party`
-identity. Core contains its ID and name, a matching administrative capability,
+identity. Core contains only its ID, a matching administrative capability,
 and the surface needed for optional extensions. It imposes no individual/group
 classification or membership representation.
 
@@ -12,17 +12,16 @@ classification or membership representation.
 ```move
 public struct Party has key {
     id: UID,
-    name: String,
 }
 ```
 
-`party::new(name, ctx)` returns the Party and its `PartyAdminCap`. A Party is
+`party::new(ctx)` returns the Party and its `PartyAdminCap`. A Party is
 key-only and must be shared with `party.share(&cap)` in the creating transaction.
-Sharing emits `PartyCreatedEvent` with the final name and both object IDs.
+Sharing emits `PartyCreatedEvent` with both object IDs.
 
-Names must be nonempty; length is not capped on-chain. The administrator can change the name
-without changing the identity. Names are unverified claims; applications choose
-which identities they trust.
+Core holds no display data. The name and other profile fields are optional
+extensions attached through `uid_mut`; they are unverified claims, and
+applications choose which identities they trust.
 
 All administration checks the capability's stored `party_id` against the Party.
 `party.authorize(&cap)` exposes that check with immutable references, allowing
@@ -42,26 +41,23 @@ A Party remains usable without that extension or with another membership model.
 
 | Event | Fields |
 | --- | --- |
-| `PartyCreatedEvent` | `party_id: ID`, `party_admin_cap_id: ID`, `name: String` |
-| `PartyNameSetEvent` | `party_id: ID`, `name: String` |
+| `PartyCreatedEvent` | `party_id: ID`, `party_admin_cap_id: ID` |
 
-Creation before sharing is silent. Setting the current name is an authorized,
-validated no-op and emits no event. Sender and time come from the transaction.
+Creation before sharing is silent. Sender and time come from the transaction.
 
 ## Errors
 
 | Code | Constant | Meaning |
 | --- | --- | --- |
 | 0 | `EUnauthorized` | The capability does not match the Party |
-| 5 | `EEmptyString` | Name is empty |
-
-The existing name-validation error codes are retained.
 
 ## Source Generation and Migration
 
 This is a breaking source generation. It removes `PartyKind`, the `kind` field,
-kind constructors and views, and all core group and invitation APIs. `new` no
-longer takes a kind. `PartyCreatedEvent` no longer contains `is_group`.
+kind constructors and views, all core group and invitation APIs, and the `name`
+field with `name`, `set_name`, `PartyNameSetEvent`, and `EEmptyString`. `new`
+takes no kind or name. `PartyCreatedEvent` no longer contains `is_group` or
+`name`.
 
 Consumers targeting this generation must update constructor calls, generated
 bindings, event decoding, and dependency pins. Group consumers use `party_group`
@@ -77,8 +73,8 @@ sui move build --lint --warnings-are-errors
 sui move test --coverage
 ```
 
-The tests cover creation, publication events, shared-object reads, name changes,
-capability confusion, and extension UID access. Historical security reviews are
+The tests cover creation, publication events, shared-object reads, capability
+confusion, and extension UID access. Historical security reviews are
 archived separately and do not cover this new generation.
 
 ## License

@@ -3,19 +3,16 @@
 
 module miso_party::party;
 
-use std::string::String;
 use sui::{derived_object::claim, event::emit};
 
 // === Errors ===
 
 const EUnauthorized: u64 = 0;
-const EEmptyString: u64 = 5;
 
 // === Structs ===
 
 public struct Party has key {
     id: UID,
-    name: String,
 }
 
 public struct PartyAdminCap has key, store {
@@ -30,35 +27,20 @@ public struct PartyAdminCapKey() has copy, drop, store;
 public struct PartyCreatedEvent has copy, drop {
     party_id: ID,
     party_admin_cap_id: ID,
-    name: String,
-}
-
-public struct PartyNameSetEvent has copy, drop {
-    party_id: ID,
-    name: String,
 }
 
 // === Public Functions ===
 
-public fun new(name: String, ctx: &mut TxContext): (Party, PartyAdminCap) {
-    assert!(!name.is_empty(), EEmptyString);
-    let mut party = Party {
-        id: object::new(ctx),
-        name,
-    };
-    let party_id = object::id(&party);
+public fun new(ctx: &mut TxContext): (Party, PartyAdminCap) {
+    let mut party = Party { id: object::new(ctx) };
     let cap = PartyAdminCap {
         id: claim(&mut party.id, PartyAdminCapKey()),
-        party_id,
+        party_id: object::id(&party),
     };
     (party, cap)
 }
 
 // === View Functions ===
-
-public fun name(self: &Party): String {
-    self.name
-}
 
 public fun uid(self: &Party): &UID {
     &self.id
@@ -71,17 +53,8 @@ public fun share(self: Party, cap: &PartyAdminCap) {
     emit(PartyCreatedEvent {
         party_id: object::id(&self),
         party_admin_cap_id: object::id(cap),
-        name: self.name,
     });
     transfer::share_object(self);
-}
-
-public fun set_name(self: &mut Party, cap: &PartyAdminCap, name: String) {
-    self.authorize(cap);
-    assert!(!name.is_empty(), EEmptyString);
-    if (self.name == name) return;
-    self.name = name;
-    emit(PartyNameSetEvent { party_id: object::id(self), name });
 }
 
 public fun authorize(self: &Party, cap: &PartyAdminCap) {
@@ -96,7 +69,7 @@ public fun uid_mut(self: &mut Party, cap: &PartyAdminCap): &mut UID {
 // === Test Functions ===
 
 #[test_only]
-public fun party_created_event_fields(event: &PartyCreatedEvent): (ID, ID, String) {
-    let PartyCreatedEvent { party_id, party_admin_cap_id, name } = event;
-    (*party_id, *party_admin_cap_id, *name)
+public fun party_created_event_fields(event: &PartyCreatedEvent): (ID, ID) {
+    let PartyCreatedEvent { party_id, party_admin_cap_id } = event;
+    (*party_id, *party_admin_cap_id)
 }
