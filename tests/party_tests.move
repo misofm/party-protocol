@@ -12,22 +12,10 @@ use sui::event::events_by_type;
 fun new_party() {
     let ctx = &mut tx_context::dummy();
     let (party, cap) = party::new(ctx);
-    party.authorize(&cap);
+    assert_eq!(cap.party_id(), object::id(&party));
     assert_eq!(events_by_type<PartyCreatedEvent>().length(), 0);
     destroy(party);
     destroy(cap);
-}
-
-#[test, expected_failure(abort_code = party::EUnauthorized)]
-fun authorize_rejects_another_partys_cap() {
-    let ctx = &mut tx_context::dummy();
-    let (party, cap) = party::new(ctx);
-    let (other, other_cap) = party::new(ctx);
-    party.authorize(&other_cap);
-    destroy(party);
-    destroy(cap);
-    destroy(other);
-    destroy(other_cap);
 }
 
 #[test, expected_failure(abort_code = party::EUnauthorized)]

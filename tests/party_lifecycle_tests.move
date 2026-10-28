@@ -26,7 +26,7 @@ fun share_emits_identity_and_capability() {
     assert_eq!(event_party_admin_cap_id, object::id(&cap));
     scenario.next_tx(READER);
     let party = scenario.take_shared<Party>();
-    party.authorize(&cap);
+    assert_eq!(cap.party_id(), object::id(&party));
     test_scenario::return_shared(party);
     destroy(cap);
     scenario.end();

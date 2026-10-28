@@ -24,8 +24,8 @@ extensions attached through `uid_mut`; they are unverified claims, and
 applications choose which identities they trust.
 
 All administration checks the capability's stored `party_id` against the Party.
-`party.authorize(&cap)` exposes that check with immutable references, allowing
-extensions to authorize their own state without mutating the Party.
+`cap.party_id()` (`party_admin_cap_party_id`) exposes the stored ID, so
+extensions can check a cap against their own state without the Party.
 `party.uid_mut(&cap)` provides mutable UID access for attaching typed fields.
 The capability is a transferable bearer object; possessing it grants authority.
 

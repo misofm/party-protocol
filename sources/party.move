@@ -29,6 +29,10 @@ public struct PartyCreatedEvent has copy, drop {
     party_admin_cap_id: ID,
 }
 
+// === Method Aliases ===
+
+public use fun party_admin_cap_party_id as PartyAdminCap.party_id;
+
 // === Public Functions ===
 
 public fun new(ctx: &mut TxContext): (Party, PartyAdminCap) {
@@ -46,6 +50,10 @@ public fun uid(self: &Party): &UID {
     &self.id
 }
 
+public fun party_admin_cap_party_id(cap: &PartyAdminCap): ID {
+    cap.party_id
+}
+
 // === Admin Functions ===
 
 public fun share(self: Party, cap: &PartyAdminCap) {
@@ -57,13 +65,15 @@ public fun share(self: Party, cap: &PartyAdminCap) {
     transfer::share_object(self);
 }
 
-public fun authorize(self: &Party, cap: &PartyAdminCap) {
-    assert!(cap.party_id == object::id(self), EUnauthorized);
-}
-
 public fun uid_mut(self: &mut Party, cap: &PartyAdminCap): &mut UID {
     self.authorize(cap);
     &mut self.id
+}
+
+// === Private Functions ===
+
+fun authorize(self: &Party, cap: &PartyAdminCap) {
+    assert!(cap.party_id == object::id(self), EUnauthorized);
 }
 
 // === Test Functions ===
