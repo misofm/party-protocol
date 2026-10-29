@@ -41,6 +41,10 @@ public fun new(ctx: &mut TxContext): (Party, PartyAdminCap) {
         id: claim(&mut party.id, PartyAdminCapKey()),
         party_id: object::id(&party),
     };
+    emit(PartyCreatedEvent {
+        party_id: object::id(&party),
+        party_admin_cap_id: object::id(&cap),
+    });
     (party, cap)
 }
 
@@ -58,10 +62,6 @@ public fun party_admin_cap_party_id(cap: &PartyAdminCap): ID {
 
 public fun share(self: Party, cap: &PartyAdminCap) {
     self.authorize(cap);
-    emit(PartyCreatedEvent {
-        party_id: object::id(&self),
-        party_admin_cap_id: object::id(cap),
-    });
     transfer::share_object(self);
 }
 
@@ -79,7 +79,7 @@ fun authorize(self: &Party, cap: &PartyAdminCap) {
 // === Test Functions ===
 
 #[test_only]
-public fun party_created_event_fields(event: &PartyCreatedEvent): (ID, ID) {
+public fun party_created_fields_for_testing(event: &PartyCreatedEvent): (ID, ID) {
     let PartyCreatedEvent { party_id, party_admin_cap_id } = event;
     (*party_id, *party_admin_cap_id)
 }

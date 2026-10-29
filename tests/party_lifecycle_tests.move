@@ -12,21 +12,18 @@ const OWNER: address = @0xA1;
 const READER: address = @0xB2;
 
 #[test]
-fun share_emits_identity_and_capability() {
+fun share_is_silent() {
     let mut scenario = test_scenario::begin(OWNER);
     let (party, cap) = party::new(scenario.ctx());
     let party_id = object::id(&party);
+    assert_eq!(events_by_type<PartyCreatedEvent>().length(), 1);
     party.share(&cap);
-    let mut events = events_by_type<PartyCreatedEvent>();
-    assert_eq!(events.length(), 1);
-    let (event_party_id, event_party_admin_cap_id) = party::party_created_event_fields(
-        &events.pop_back(),
-    );
-    assert_eq!(event_party_id, party_id);
-    assert_eq!(event_party_admin_cap_id, object::id(&cap));
+    assert_eq!(events_by_type<PartyCreatedEvent>().length(), 1);
     scenario.next_tx(READER);
+    assert_eq!(events_by_type<PartyCreatedEvent>().length(), 0);
     let party = scenario.take_shared<Party>();
     assert_eq!(cap.party_id(), object::id(&party));
+    assert_eq!(object::id(&party), party_id);
     test_scenario::return_shared(party);
     destroy(cap);
     scenario.end();

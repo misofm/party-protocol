@@ -17,7 +17,7 @@ public struct Party has key {
 
 `party::new(ctx)` returns the Party and its `PartyAdminCap`. A Party is
 key-only and must be shared with `party.share(&cap)` in the creating transaction.
-Sharing emits `PartyCreatedEvent` with both object IDs.
+`new` emits `PartyCreatedEvent` with both object IDs; `share` is silent.
 
 Core holds no display data. The name and other profile fields are optional
 extensions attached through `uid_mut`; they are unverified claims, and
@@ -43,7 +43,7 @@ A Party remains usable without that extension or with another membership model.
 | --- | --- |
 | `PartyCreatedEvent` | `party_id: ID`, `party_admin_cap_id: ID` |
 
-Creation before sharing is silent. Sender and time come from the transaction.
+`new` emits the event, and `share` emits nothing. Sender and time come from the transaction.
 
 ## Errors
 
@@ -73,7 +73,7 @@ sui move build --lint --warnings-are-errors
 sui move test --coverage
 ```
 
-The tests cover creation, publication events, shared-object reads, capability
+The tests cover creation events, silent sharing, shared-object reads, capability
 confusion, and extension UID access. Historical security reviews are
 archived separately and do not cover this new generation.
 

@@ -13,7 +13,13 @@ fun new_party() {
     let ctx = &mut tx_context::dummy();
     let (party, cap) = party::new(ctx);
     assert_eq!(cap.party_id(), object::id(&party));
-    assert_eq!(events_by_type<PartyCreatedEvent>().length(), 0);
+    let mut events = events_by_type<PartyCreatedEvent>();
+    assert_eq!(events.length(), 1);
+    let (event_party_id, event_party_admin_cap_id) = party::party_created_fields_for_testing(
+        &events.pop_back(),
+    );
+    assert_eq!(event_party_id, object::id(&party));
+    assert_eq!(event_party_admin_cap_id, object::id(&cap));
     destroy(party);
     destroy(cap);
 }
