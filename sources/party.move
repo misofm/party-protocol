@@ -48,6 +48,10 @@ public fun new(ctx: &mut TxContext): (Party, PartyAdminCap) {
     (party, cap)
 }
 
+public fun share(self: Party) {
+    transfer::share_object(self);
+}
+
 // === View Functions ===
 
 public fun uid(self: &Party): &UID {
@@ -59,11 +63,6 @@ public fun party_admin_cap_party_id(cap: &PartyAdminCap): ID {
 }
 
 // === Admin Functions ===
-
-public fun share(self: Party, cap: &PartyAdminCap) {
-    self.authorize(cap);
-    transfer::share_object(self);
-}
 
 public fun uid_mut(self: &mut Party, cap: &PartyAdminCap): &mut UID {
     self.authorize(cap);

@@ -16,7 +16,7 @@ public struct Party has key {
 ```
 
 `party::new(ctx)` returns the Party and its `PartyAdminCap`. A Party is
-key-only and must be shared with `party.share(&cap)` in the creating transaction.
+key-only and must be shared with `party.share()` in the creating transaction.
 `new` emits `PartyCreatedEvent` with both object IDs; `share` is silent.
 
 Core holds no display data. The name and other profile fields are optional

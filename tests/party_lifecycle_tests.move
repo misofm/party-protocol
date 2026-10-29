@@ -17,7 +17,7 @@ fun share_is_silent() {
     let (party, cap) = party::new(scenario.ctx());
     let party_id = object::id(&party);
     assert_eq!(events_by_type<PartyCreatedEvent>().length(), 1);
-    party.share(&cap);
+    party.share();
     assert_eq!(events_by_type<PartyCreatedEvent>().length(), 1);
     scenario.next_tx(READER);
     assert_eq!(events_by_type<PartyCreatedEvent>().length(), 0);
@@ -33,7 +33,7 @@ fun share_is_silent() {
 fun uid_mut_attaches_dynamic_fields_on_shared_party() {
     let mut scenario = test_scenario::begin(OWNER);
     let (p, cap) = party::new(scenario.ctx());
-    p.share(&cap);
+    p.share();
     scenario.next_tx(OWNER);
     let mut p = scenario.take_shared<Party>();
     dynamic_field::add(p.uid_mut(&cap), b"profile", 42u64);
@@ -42,15 +42,4 @@ fun uid_mut_attaches_dynamic_fields_on_shared_party() {
     test_scenario::return_shared(p);
     destroy(cap);
     scenario.end();
-}
-
-#[test, expected_failure(abort_code = party::EUnauthorized)]
-fun share_rejects_wrong_cap() {
-    let ctx = &mut tx_context::dummy();
-    let (party, cap) = party::new(ctx);
-    let (other, other_cap) = party::new(ctx);
-    destroy(cap);
-    destroy(other);
-    party.share(&other_cap);
-    destroy(other_cap);
 }
