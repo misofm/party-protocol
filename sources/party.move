@@ -65,14 +65,8 @@ public fun party_admin_cap_party_id(cap: &PartyAdminCap): ID {
 // === Admin Functions ===
 
 public fun uid_mut(self: &mut Party, cap: &PartyAdminCap): &mut UID {
-    self.authorize(cap);
-    &mut self.id
-}
-
-// === Private Functions ===
-
-fun authorize(self: &Party, cap: &PartyAdminCap) {
     assert!(cap.party_id == object::id(self), EUnauthorized);
+    &mut self.id
 }
 
 // === Test Functions ===
